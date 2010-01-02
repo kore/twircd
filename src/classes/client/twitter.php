@@ -22,10 +22,16 @@
  * @license http://www.gnu.org/licenses/gpl-3.0.txt GPL
  */
 
+namespace TwIRCd\Client;
+
 /**
  * Twitter microblogging client
+ *
+ * @package Core
+ * @version $Revision$
+ * @license http://www.gnu.org/licenses/gpl-3.0.txt GPL
  */
-class iiTwitterClient extends iiClient
+class Twitter extends \TwIRCd\Client
 {
     /**
      * Service base URL
@@ -35,41 +41,217 @@ class iiTwitterClient extends iiClient
     protected $baseUrl = 'twitter.com';
 
     /**
-     * Service base search url URL
-     * 
-     * @var string
-     */
-    protected $searchUrl = 'http://search.twitter.com/search.atom?q=%s';
-
-    /**
-     * Key identifying the service
-     * 
-     * @var string
-     */
-    protected $key = 'twitter';
-
-    /**
-     * Twitter search terms, which are listened to.
-     * 
-     * @var array
-     */
-    protected $searches;
-
-    /**
-     * Create microblogging client from user credentials
+     * Receive new messages
      *
-     * The twitter client optionally may receive any number of search terms,
-     * which are listend to.
+     * Receive new messages from the timeline microblogging service, since the 
+     * last request, specified by a time stamp.
      *
-     * @param iiCredentials $credentials 
-     * @param iiStorage $storage
-     * @param array $searches
+     * Returns an array of message objects.
+     *
+     * Schould only be accessed indirectly through the getUpdates() method, 
+     * which maintains a request queue to respect the rate limits of the 
+     * microblogging service.
+     *
+     * @param int $since 
+     * @return array
+     */
+    public function getTimeline( $since )
+    {
+        $this->logger->log( E_NOTICE, "Retrive friends timeline for user {$this->user}." );
+        $data = $this->httpRequest( 'GET', '/statuses/friends_timeline.json', array(
+            'since' => date( DATE_RFC822, $since ),
+            'count' => 50,
+        ) );
+
+        $messages = array();
+        if ( count( $data ) && is_array( $data ) )
+        {
+            $data = array_reverse( $data );
+            foreach( $data as $message )
+            {
+                // Twitter some times still sends all messages, even only new
+                // message since some date are requested, so we need to recheck
+                // that manually.
+                $date = new \DateTime( $message['created_at'] );
+                if ( $date->getTimestamp() < $since )
+                {
+                    continue;
+                }
+
+                $messages[] = new Message(
+                    $message['user']['screen_name'] . '!' . $message['user']['screen_name'] . '@twitter.com',
+                    '&twitter',
+                    $this->unfoldUrls( html_entity_decode( $message['text'] ) )
+                );
+            }
+        }
+
+        return $messages;
+    }
+
+    /**
+     * Receive direct messages
+     *
+     * Receive new direct messages from the microblogging service, since the 
+     * las request, specified as a time stamp.
+     *
+     * Returns an array of message objects.
+     *
+     * Schould only be accessed indirectly through the getUpdates() method, 
+     * which maintains a request queue to respect the rate limits of the 
+     * microblogging service.
+     *
+     * @param int $since 
+     * @return array
+     */
+    public function getDirectMessages( $since )
+    {
+        return array();
+    }
+
+    /**
+     * Receive search results
+     *
+     * Receive new search results from the microblogging service, since the 
+     * last request, specified as a time stamp.
+     *
+     * Returns an array of message objects.
+     *
+     * Schould only be accessed indirectly through the getUpdates() method, 
+     * which maintains a request queue to respect the rate limits of the 
+     * microblogging service.
+     *
+     * @param int $since 
+     * @param string $channel 
+     * @param string $search 
+     * @return array
+     */
+    public function getSearchResults( $since, $channel, $search )
+    {
+        return array();
+    }
+
+    /**
+     * Update status
+     *
+     * Send given string as a message using the given microblogging service.
+     * There might be some restrictions on the message, depending on the
+     * service. Violating these an exception might be thrown.
+     * 
+     * @param string $string 
      * @return void
      */
-    public function __construct( iiCredentials $credentials, iiStorage $storage, array $searches = array() )
+    public function updateStatus( $string )
     {
-        parent::__construct( $credentials, $storage );
-        $this->searches = $searches;
+    }
+
+    /**
+     * Send a direct message
+     *
+     * Send given string as a direct message to another user using the given 
+     * microblogging service. There might be some restrictions on the message, 
+     * depending on the service. Violating these an exception might be thrown.
+     * 
+     * @param string $user 
+     * @param string $string 
+     * @return void
+     */
+    public function sendDirectMessage( $user, $string )
+    {
+    }
+
+    /**
+     * Get friend list
+     *
+     * Get a list of all followers (friends) of the user.
+     * 
+     * @return array
+     */
+    public function getFriends()
+    {
+        $this->logger->log( E_NOTICE, "Retrive friend list for user {$this->user}." );
+        $json = $this->httpRequest( 'GET', '/statuses/friends.json' );
+
+        $friends = array();
+        foreach( $json as $friend )
+        {
+            $friends[] = new Friend( $friend['screen_name'], $friend['status']['text'], $friend['name'] );
+        }
+
+        return $friends;
+    }
+
+    /**
+     * Perform a HTTP request
+     *
+     * Performs a HTTP request, using the client environment, like the base 
+     * path, the configured username and password.
+     *
+     * Appends the optional data, depending on the request method. Implements 
+     * error handling for the twitter requests, and throws an exception for 
+     * occured errors.
+     *
+     * Returns an array with the data provided by the service on success.
+     * 
+     * @param string $method 
+     * @param string $path 
+     * @param array $data 
+     * @return array
+     */
+    protected function httpRequest( $method, $path, array $data = array() )
+    {
+        $url = 'http://' . urlencode( $this->user ) . ':' . urlencode( $this->password ) . '@' . $this->baseUrl . $path;
+
+        // Append data to URL for GET requests
+        if ( ( $method === 'GET' ) && 
+             count( $data ) )
+        {
+            $url .= '?' . http_build_query( $data );
+        }
+    
+        // Configure request options
+        $options = array(
+            'http' => array(
+                'method'        => $method,
+                'ignore_errors' => true,
+            ),
+        );
+
+        // Append data to body for non-GET requests
+        if ( ( $method !== 'GET' ) && 
+             count( $data ) )
+        {
+            $options['http']['content'] = http_build_query( $data );
+        }
+
+        // Receive all new messages
+        //
+        // Silence error messages about connection failure or similar, those are
+        // somehow expected with twitter.
+        $this->logger->log( E_NOTICE, $url );
+        $fp = @fopen( $url, 'r', false, stream_context_create( $options ) );
+
+        if ( $fp === false )
+        {
+            throw new \Exception( 'Could not connect to service.' );
+        }
+
+        // Read all the returned stuff
+        $data = '';
+        while ( !feof( $fp ) )
+        {
+            $data .= fread( $fp, 1024 );
+        }
+        fclose( $fp );
+        $data = json_decode( $data, true );
+
+        if ( isset( $data->error ) )
+        {
+            // On error, exit with error code
+            throw new \Exception( $data->error );
+        }
+
+        return $data;
     }
 
     /**
@@ -80,7 +262,7 @@ class iiTwitterClient extends iiClient
      * 
      * @return array
      */
-    protected function fetchFriendsTimeline()
+    protected function oldfetchFriendsTimeline()
     {
         $lastMessage = $this->storage->get( $key = $this->key . '/' . $this->credentials->user );
 
@@ -175,7 +357,7 @@ class iiTwitterClient extends iiClient
      * @param string $term
      * @return array
      */
-    public function fetchSearch( $term )
+    public function oldfetchSearch( $term )
     {
         $lastMessage = $this->storage->get( $key = $this->key . '/' . $this->credentials->user . '_search_' . preg_replace( '([^A-Za-z]+)', '', $term ) );
         $friends = $this->getFriends();
@@ -243,7 +425,7 @@ class iiTwitterClient extends iiClient
      * 
      * @return array
      */
-    protected function fetchSearches()
+    protected function oldfetchSearches()
     {
         $messages = array();
         foreach ( $this->searches as $term )
@@ -265,7 +447,7 @@ class iiTwitterClient extends iiClient
      *
      * @return array
      */
-    public function getNewMessages()
+    public function oldgetNewMessages()
     {
         return array_merge(
             $this->fetchFriendsTimeline(),
@@ -283,7 +465,7 @@ class iiTwitterClient extends iiClient
      * @param string $string 
      * @return void
      */
-    public function sendMessage( $string )
+    public function oldsendMessage( $string )
     {
         // Try to shorten all included URLs, if message is too long otherwise
         if ( strlen( $string ) > 140 )
@@ -341,53 +523,6 @@ class iiTwitterClient extends iiClient
         }
 
         fclose( $fp );
-    }
-
-    /**
-     * Get list of people, who you are following on twitter.
-     * 
-     * @return array
-     */
-    protected function getFriends()
-    {
-        // Receive friend list, if not already fetched, and update friend list
-        // every hour.
-        if ( ( ( $friends = $this->storage->get( $key = $this->key . '/' . $this->credentials->user . '_friends' ) ) === false ) ||
-             ( $friends['lastUpdate'] < ( time() - 3600 ) ) )
-        {
-            $json = file_get_contents( 'http://' . $this->credentials->user . ':' . $this->credentials->password . '@' . $this->baseUrl . '/statuses/friends.json' );
-            if ( !$json )
-            {
-                return array();
-            }
-
-            $json = json_decode( $json, true );
-            
-            $friends = array(
-                'lastUpdate' => time(),
-                'friends'    => array(),
-            );
-            foreach( $json as $friend )
-            {
-                $friends['friends'][] = $friend['screen_name'];
-            }
-
-            $this->storage->store( $key, $friends );
-        }
-
-        return $friends['friends'];
-    }
-
-    /**
-     * Get client name
-     *
-     * Get a name of the client, which is mainly used for error reporting.
-     * 
-     * @return string
-     */
-    public function getName()
-    {
-        return "Twitter";
     }
 }
 

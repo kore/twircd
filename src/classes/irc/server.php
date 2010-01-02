@@ -266,7 +266,7 @@ class Server
     }
 
     /**
-     * Send IRC command to user
+     * Send message from server to the user
      * 
      * @param User $user 
      * @param mixed $message 
@@ -275,6 +275,20 @@ class Server
     public function sendServerMessage( User $user, $message )
     {
         $this->send( $user, ':twircd '. $message );
+    }
+
+    /**
+     * Send message from somebody to somebody
+     * 
+     * @param User $user 
+     * @param string $from
+     * @param string $to
+     * @param string $message
+     * @return void
+     */
+    public function sendMessage( User $user, $from, $to, $message )
+    {
+        $this->send( $user, ":$from PRIVMSG $to :$message" );
     }
 
     /**

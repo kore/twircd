@@ -33,6 +33,11 @@ require 'classes/irc/message.php';
 require 'classes/irc/user.php';
 require 'classes/irc/server.php';
 
+require 'classes/client.php';
+require 'classes/client/friend.php';
+require 'classes/client/message.php';
+require 'classes/client/twitter.php';
+
 require 'classes/server.php';
 
 $logger = new Logger\StdOut();

@@ -22,25 +22,17 @@
  * @license http://www.gnu.org/licenses/gpl-3.0.txt GPL
  */
 
+namespace TwIRCd;
+
 /**
  * Abstract microblogging client base class
+ *
+ * @package Core
+ * @version $Revision$
+ * @license http://www.gnu.org/licenses/gpl-3.0.txt GPL
  */
-abstract class iiClient
+abstract class Client
 {
-    /**
-     * Storage class, which knows about the last update state
-     * 
-     * @var iiStorage
-     */
-    protected $storage;
-
-    /**
-     * User credentials
-     * 
-     * @var iiCredentials
-     */
-    protected $credentials;
-
     /**
      * Hosts for which no URL shortening should happen.
      * 
@@ -59,6 +51,51 @@ abstract class iiClient
         'url.ca'      => true,
         'url.ie'      => true,
     );
+
+    /**
+     * Factor to delay requests to the service
+     *
+     * The time span between the requests will be slowed down by this factor. 
+     * The factor itself will be adapted, if the rate limits of the service 
+     * were reached.
+     * 
+     * @var float
+     */
+    protected $queueFactor = 1;
+
+    /**
+     * Queue with all stacked requests to the microblogging service.
+     * 
+     * @var array
+     */
+    protected $queue = array();
+
+    /**
+     * Default update times for the reading requests to the microblogging 
+     * service. They might be different in the actual run,because they are 
+     * modified by the $queueFactor property.
+     * 
+     * @var array
+     */
+    protected $updateTimes = array(
+        'getTimeline'       => 60,
+        'getDirectMessages' => 60,
+        'getSearchResults'  => 300,
+    );
+
+    /**
+     * User name
+     * 
+     * @var string
+     */
+    protected $user;
+
+    /**
+     * Password
+     * 
+     * @var string
+     */
+    protected $password;
 
     /**
      * Regular expression to "parse" URLs out of text. 
@@ -85,15 +122,27 @@ abstract class iiClient
     )xm';
 
     /**
-     * Create microblogging client from user credentials
+     * Construct client from logger
      * 
-     * @param iiCredentials $credentials 
+     * @param \TwIRCd\Logger $logger 
      * @return void
      */
-    public function __construct( iiCredentials $credentials, iiStorage $storage )
+    public function __construct( \TwIRCd\Logger $logger )
     {
-        $this->credentials = $credentials;
-        $this->storage     = $storage;
+        $this->logger = $logger;
+    }
+
+    /**
+     * Set user credentials
+     * 
+     * @param string $user 
+     * @param string $password 
+     * @return void
+     */
+    public function setCredentials( $user, $password )
+    {
+        $this->user     = $user;
+        $this->password = $password;
     }
 
     /**
@@ -145,18 +194,120 @@ abstract class iiClient
     }
 
     /**
-     * Receive new messages
+     * Add call to queue
      *
-     * Receive new messages from microblogging service.
+     * Add a call to the microblogging backend to the queue. The supported call 
+     * types are:
      *
-     * Returns an array of iiMessage objects.
+     * - getTimeline
+     * - getDirectMessages
+     * - getSearchResults
      *
-     * @return array
+     * They all have different parameters, while the first is always the last 
+     * call to the service.
+     * 
+     * @param string $type 
+     * @param array $parameters 
+     * @return void
      */
-    abstract public function getNewMessages();
+    public function queue( $type, array $parameters )
+    {
+        $this->queue[] = array(
+            'type'       => $type,
+            'parameters' => $parameters,
+            'scheduled'  => 0,
+        );
+    }
 
     /**
-     * Send message
+     * Receive updates
+     *
+     * Receive updates from searches, direct messages and the timeline. Only 
+     * returns something, if the queue offers something to process. Can be 
+     * called at any rate and ensures itself, that the services are not called 
+     * too often.
+     *
+     * Returns an array of message objects.
+     * 
+     * @return array
+     */
+    public function getUpdates()
+    {
+        $current = time();
+        foreach ( $this->queue as &$entry )
+        {
+            if ( $entry['scheduled'] < $current )
+            {
+                $result = call_user_func_array(
+                    array( $this, $entry['type'] ),
+                    $entry['parameters']
+                );
+                $entry['parameters'][0] = $current;
+                $entry['scheduled']     = $current + $this->queueFactor * $this->updateTimes[$entry['type']];
+                $this->logger->log( E_NOTICE, "Rescheduled item {$entry['type']} at " . date( 'r', $entry['scheduled'] ) . '.' );
+
+                return $result;
+            }
+        }
+
+        return array();
+    }
+
+    /**
+     * Receive new messages
+     *
+     * Receive new messages from the timeline microblogging service, since the 
+     * last request, specified by a time stamp.
+     *
+     * Returns an array of message objects.
+     *
+     * Schould only be accessed indirectly through the getUpdates() method, 
+     * which maintains a request queue to respect the rate limits of the 
+     * microblogging service.
+     *
+     * @param int $since 
+     * @return array
+     */
+    abstract public function getTimeline( $since );
+
+    /**
+     * Receive direct messages
+     *
+     * Receive new direct messages from the microblogging service, since the 
+     * las request, specified as a time stamp.
+     *
+     * Returns an array of message objects.
+     *
+     * Schould only be accessed indirectly through the getUpdates() method, 
+     * which maintains a request queue to respect the rate limits of the 
+     * microblogging service.
+     *
+     * @param int $since 
+     * @return array
+     */
+    abstract public function getDirectMessages( $since );
+
+    /**
+     * Receive search results
+     *
+     * Receive new search results from the microblogging service, since the 
+     * last request, specified as a time stamp.
+     *
+     * Returns an array of message objects.
+     *
+     * Schould only be accessed indirectly through the getUpdates() method, 
+     * which maintains a request queue to respect the rate limits of the 
+     * microblogging service.
+     *
+     * @param int $since 
+     * @param string $channel 
+     * @param string $search 
+     * @return array
+     */
+    abstract public function getSearchResults( $since, $channel, $search );
+
+    /**
+     * Update status
      *
      * Send given string as a message using the given microblogging service.
      * There might be some restrictions on the message, depending on the
@@ -165,15 +316,28 @@ abstract class iiClient
      * @param string $string 
      * @return void
      */
-    abstract public function sendMessage( $string );
+    abstract public function updateStatus( $string );
 
     /**
-     * Get client name
+     * Send a direct message
      *
-     * Get a name of the client, which is mainly used for error reporting.
+     * Send given string as a direct message to another user using the given 
+     * microblogging service. There might be some restrictions on the message, 
+     * depending on the service. Violating these an exception might be thrown.
      * 
-     * @return string
+     * @param string $user 
+     * @param string $string 
+     * @return void
      */
-    abstract public function getName();
+    abstract public function sendDirectMessage( $user, $string );
+
+    /**
+     * Get friend list
+     *
+     * Get a list of all followers (friends) of the user.
+     * 
+     * @return array
+     */
+    abstract public function getFriends();
 }
 
