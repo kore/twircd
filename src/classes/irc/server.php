@@ -172,7 +172,8 @@ class Server
                 socket_set_nonblock( $client );
                 socket_getpeername( $client, $address );
                 $this->logger->log( E_NOTICE, "Client connected from $address." );
-                $this->users[] = new User( $client );
+                $this->users[] = $user = new User( $client );
+                $user->host = gethostbyaddr( $address );
             }
 
             // Process incoming messages
@@ -308,10 +309,8 @@ class Server
      */
     protected function registerUser( User $user, Message $message )
     {
-        $user->userName   = $message->params[0];
-        $user->hostName   = $message->params[1];
-        $user->serverName = $message->params[2];
-        $user->realName   = $message->text;
+        $user->ident    = $message->params[0];
+        $user->realName = $message->text;
 
         $this->sendServerMessage( $user, "001 {$user->nick} :Welcome to the Twitter IRC Server." );
         $this->sendServerMessage( $user, "002 {$user->nick} :Your host is {$this->ip} [{$this->ip}/ {$this->port}], running twircd." );

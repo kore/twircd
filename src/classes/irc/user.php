@@ -43,6 +43,13 @@ class User
     protected $connection;
 
     /**
+     * Host of the user
+     * 
+     * @var string
+     */
+    public $host;
+
+    /**
      * Current nick of user
      * 
      * @var string
@@ -57,25 +64,11 @@ class User
     public $password;
 
     /**
-     * User name
+     * User name / ident
      * 
      * @var string
      */
-    public $userName;
-
-    /**
-     * Host name
-     * 
-     * @var string
-     */
-    public $hostName;
-
-    /**
-     * Server name
-     * 
-     * @var string
-     */
-    public $serverName;
+    public $ident;
 
     /**
      * Real name
@@ -111,6 +104,18 @@ class User
             default:
                 throw new InvalidArgumentException( $property );
         }
+    }
+
+    /**
+     * Return a string representation of the user
+     *
+     * Returns a common string representation of the IRC user
+     * 
+     * @return string
+     */
+    public function __toString()
+    {
+        return "{$this->nick}!{$this->ident}@{$this->host}";
     }
 }
 
