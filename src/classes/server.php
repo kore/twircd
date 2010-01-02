@@ -178,6 +178,7 @@ class Server
         }
 
         $this->logger->log( E_NOTICE, "Twitter: " . $message->text );
+        // @todo: Implement
     }
 
     /**

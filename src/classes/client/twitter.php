@@ -106,6 +106,7 @@ class Twitter extends \TwIRCd\Client
      */
     public function getDirectMessages( $since )
     {
+        // @todo: Implement
         return array();
     }
 
@@ -128,6 +129,7 @@ class Twitter extends \TwIRCd\Client
      */
     public function getSearchResults( $since, $channel, $search )
     {
+        // @todo: Implement
         return array();
     }
 
@@ -143,6 +145,7 @@ class Twitter extends \TwIRCd\Client
      */
     public function updateStatus( $string )
     {
+        // @todo: Implement
     }
 
     /**
@@ -158,6 +161,7 @@ class Twitter extends \TwIRCd\Client
      */
     public function sendDirectMessage( $user, $string )
     {
+        // @todo: Implement
     }
 
     /**
