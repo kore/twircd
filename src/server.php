@@ -24,6 +24,8 @@
 
 namespace TwIRCd;
 
+const VERSION = '0.0.1';
+
 require 'classes/logger.php';
 require 'classes/logger/stdout.php';
 

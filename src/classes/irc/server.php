@@ -26,6 +26,9 @@ namespace TwIRCd\Irc;
 
 /**
  * IRC Server
+ *
+ * @todo Implement detection of broken client connections, using PING.
+ * @todo Maybe implement checks, disallowing multiple users with the same name.
  * 
  * @package Core
  * @version $Revision$
@@ -41,7 +44,9 @@ class Server
      * 
      * @var array
      */
-    protected $callbacks = array();
+    protected $callbacks = array(
+        'cycle' => array(),
+    );
 
     /**
      * Array of user contextes
@@ -97,23 +102,11 @@ class Server
 
         // Register own callbacks, which are required to provide a working IRC 
         // server
-        $this->callbacks = array(
-            'PASS' => array(
-                array( $this, 'setUserPassword' ),
-            ),
-            'USER' => array(
-                array( $this, 'registerUser' ),
-            ),
-            'NICK' => array(
-                array( $this, 'changeNick' ),
-            ),
-            'QUIT' => array(
-                array( $this, 'disconnectUser' ),
-            ),
-            'PING' => array(
-                array( $this, 'pong' ),
-            ),
-        );
+        $this->callbacks['PASS'] = array( array( $this, 'setUserPassword' ) );
+        $this->callbacks['USER'] = array( array( $this, 'registerUser' ) );
+        $this->callbacks['NICK'] = array( array( $this, 'changeNick' ) );
+        $this->callbacks['QUIT'] = array( array( $this, 'disconnectUser' ) );
+        $this->callbacks['PING'] = array( array( $this, 'pong' ) );
     }
 
     /**
@@ -137,12 +130,15 @@ class Server
     /**
      * Register callback
      *
-     * Register a callback for a specific event. The available callbacks are:
+     * Register a callback for a specific event. The events are all IRC 
+     * commands, which are send by any client, like JOIN, PRIVMSG, USER or 
+     * similar. Additionally there are the following events:
      *
-     * - JOIN
-     * - MESSAGE
+     * - "cycle" - An iteration of the main loop, called very often.
      *
-     * The callbacks should be of the common PHP callback datatype.
+     * The callbacks should be of the common PHP callback datatype. The cycle 
+     * callback can be used to implement a push mechanism for other services to 
+     * the IRC server.
      * 
      * @param string $event 
      * @param callback $callback 
@@ -186,6 +182,12 @@ class Server
             gc_collect_cycles();
             usleep( 100 * 1000 );
 
+            // Execute cycle callback
+            foreach ( $this->callbacks['cycle'] as $callback )
+            {
+                call_user_func( $callback );
+            }
+    
         } while ( $socket );
     }
 
@@ -312,10 +314,11 @@ class Server
         $user->ident    = $message->params[0];
         $user->realName = $message->text;
 
-        $this->sendServerMessage( $user, "001 {$user->nick} :Welcome to the Twitter IRC Server." );
-        $this->sendServerMessage( $user, "002 {$user->nick} :Your host is {$this->ip} [{$this->ip}/ {$this->port}], running twircd." );
-        $this->sendServerMessage( $user, "003 {$user->nick} :This server was created just for you." );
-        $this->sendServerMessage( $user, "004 {$user->nick} :twircd 0.0.1 o t" );
+        // Send welcome messages as defined in RFC 2812
+        $this->sendServerMessage( $user, "001 {$user->nick} :Welcome to the Internet Relay Network {$user}" );
+        $this->sendServerMessage( $user, "002 {$user->nick} :Your host is twircd, running version " . \TwIRCd\VERSION );
+        $this->sendServerMessage( $user, "003 {$user->nick} :This server was created " . date( 'r' ) );
+        $this->sendServerMessage( $user, "004 {$user->nick} :twircd " . \TwIRCd\VERSION . " o t" );
     }
 
     /**
@@ -327,7 +330,7 @@ class Server
      */
     protected function pong( User $user, Message $message )
     {
-        $this->sendServerMessage( $user, 'PONG ' . implode( ' ', $message->params ) );
+        $this->sendServerMessage( $user, 'PONG twircd ' . implode( ' ', $message->params ) );
     }
 
     /**
