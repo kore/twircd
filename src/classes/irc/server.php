@@ -258,7 +258,20 @@ class Server
      */
     public function send( User $user, $message )
     {
+        $this->logger->log( E_NOTICE, "Response sent to user: $message" );
         socket_write( $user->connection, trim( $message ) . "\r\n" );
+    }
+
+    /**
+     * Send IRC command to user
+     * 
+     * @param User $user 
+     * @param mixed $message 
+     * @return void
+     */
+    public function sendServerMessage( User $user, $message )
+    {
+        $this->send( $user, ':twircd '. $message );
     }
 
     /**
@@ -283,7 +296,6 @@ class Server
      */
     protected function setUserPassword( User $user, Message $message )
     {
-        $this->logger->log( E_NOTICE, "User changed nick to: {$message->params[0]}." );
         $user->password = $message->params[0];
     }
 
@@ -300,6 +312,11 @@ class Server
         $user->hostName   = $message->params[1];
         $user->serverName = $message->params[2];
         $user->realName   = $message->text;
+
+        $this->sendServerMessage( $user, "001 {$user->nick} :Welcome to the Twitter IRC Server." );
+        $this->sendServerMessage( $user, "002 {$user->nick} :Your host is {$this->ip} [{$this->ip}/ {$this->port}], running twircd." );
+        $this->sendServerMessage( $user, "003 {$user->nick} :This server was created just for you." );
+        $this->sendServerMessage( $user, "004 {$user->nick} :twircd 0.0.1 o t" );
     }
 
     /**
@@ -311,7 +328,7 @@ class Server
      */
     protected function pong( User $user, Message $message )
     {
-        $this->send( $user, 'PONG ' . implode( ' ', $message->params ) );
+        $this->sendServerMessage( $user, 'PONG ' . implode( ' ', $message->params ) );
     }
 
     /**
@@ -328,6 +345,7 @@ class Server
             if ( $client === $user )
             {
                 $this->logger->log( E_NOTICE, "Disconnecting client {$user->nick}." );
+                $this->sendServerMessage( $user, 'QUIT :' . $message->text ?: 'Client exited' );
                 socket_close( $user->connection );
                 unset( $this->users[$nr] );
             }
