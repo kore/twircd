@@ -145,7 +145,24 @@ class Twitter extends \TwIRCd\Client
      */
     public function updateStatus( $string )
     {
-        // @todo: Implement
+        // Try to shorten all included URLs, if message is too long otherwise
+        if ( strlen( $string ) > 140 )
+        {
+            $string = $this->shortenUrls( $string );
+        }
+
+        // Skip messages, which aree too long for twitter, and inform the user
+        if ( strlen( $string ) > 140 )
+        {
+            throw new \Exception(
+                sprintf( "Skipping too long message (%d characters), overlapping part: '%s'\n",
+                    strlen( $string ),
+                    substr( trim( $string ), 140 )
+                )
+            );
+        }
+
+        $this->httpRequest( 'POST', '/statuses/update.json', array( 'status' => $string ) );
     }
 
     /**
@@ -259,97 +276,6 @@ class Twitter extends \TwIRCd\Client
     }
 
     /**
-     * Get updates from friends timeline
-     *
-     * Receive all updates from the twitter friends timeline, which includes
-     * your own updates, as well all updates from the "friends" you follow.
-     * 
-     * @return array
-     */
-    protected function oldfetchFriendsTimeline()
-    {
-        $lastMessage = $this->storage->get( $key = $this->key . '/' . $this->credentials->user );
-
-        // Receive all new messages
-        //
-        // Silence error messages about connection failure or similar, those are
-        // somehow expected with twitter.
-        $fp = @fopen(
-            $url = 'http://' . $this->credentials->user . ':' . $this->credentials->password . '@' . $this->baseUrl . '/statuses/friends_timeline.json?' . 
-            ( ( $lastMessage === false ) ?
-                http_build_query( array(
-                    'count' => 10,
-                ) ) :
-                http_build_query( array(
-                    'since' => date( DATE_RFC822, $lastMessage + 1 ),
-                    'count' => 10,
-                ) )
-            ),
-            'r', false,
-            stream_context_create(
-                array(
-                    'http' => array(
-                        'method'        => 'GET',
-                        'ignore_errors' => true,
-                    ),
-                )
-            )
-        );
-
-        if ( $fp === false )
-        {
-            throw new iiClientException( 'Could not connect.' );
-        }
-
-        // Read all the returned stuff
-        $data = '';
-        while ( !feof( $fp ) )
-        {
-            $data .= fread( $fp, 1024 );
-        }
-        fclose( $fp );
-        $data = json_decode( $data );
-
-        if ( isset( $data->error ) )
-        {
-            // On error, exit with error code
-            throw new iiClientException(  $data->error );
-        }
-
-        $messages = array();
-        if ( count( $data ) && is_array( $data ) )
-        {
-            $data = array_reverse( $data );
-            foreach( $data as $message )
-            {
-                // Twitter some times still sends all messages, even only new
-                // message since some date are requested, so we need to recheck
-                // that manually.
-                $date = new DateTime( $message->created_at );
-                if ( $date->getTimestamp() <= $lastMessage )
-                {
-                    continue;
-                }
-
-                $messages[] = $update = new iiMessage(
-                    $date,
-                    $message->user->screen_name,
-                    $this->unfoldUrls( html_entity_decode( $message->text ) ),
-                    $message->user->name
-                );
-            }
-
-            // Store date of last message received
-            if ( isset( $update ) )
-            {
-                $this->storage->store( $key, $update->date->getTimestamp() );
-            }
-        }
-
-        return $messages;
-    }
-
-    /**
      * Convert search term feeds to messages
      *
      * Fetch the RSS feed for the given search term and convert all messages in
@@ -440,93 +366,6 @@ class Twitter extends \TwIRCd\Client
             );
         }
         return $messages;
-    }
-
-    /**
-     * Receive new messages
-     *
-     * Receive new messages from microblogging service.
-     *
-     * Returns an array of iiMessage objects.
-     *
-     * @return array
-     */
-    public function oldgetNewMessages()
-    {
-        return array_merge(
-            $this->fetchFriendsTimeline(),
-            $this->fetchSearches()
-        );
-    }
-
-    /**
-     * Send message
-     *
-     * Send given string as a message using the given microblogging service.
-     * There might be some restrictions on the message, depending on the
-     * service. Violating these an exception might be thrown.
-     * 
-     * @param string $string 
-     * @return void
-     */
-    public function oldsendMessage( $string )
-    {
-        // Try to shorten all included URLs, if message is too long otherwise
-        if ( strlen( $string ) > 140 )
-        {
-            $string = $this->shortenUrls( $string );
-        }
-
-        // Skip messages, which aree too long for twitter, and inform the user
-        if ( strlen( $string ) > 140 )
-        {
-            throw new iiClientException(
-                sprintf( "Skipping too long message (%d characters), overlapping part: '%s'\n",
-                    strlen( $string ),
-                    substr( trim( $string ), 140 )
-                )
-            );
-        }
-
-        // Send using twitter REST API
-        //
-        // Silence error messages about connection failure or similar, those are
-        // somehow expected with twitter.
-        $fp = @fopen(
-            $url = 'http://' . $this->credentials->user . ':' . $this->credentials->password . '@' . $this->baseUrl . '/statuses/update.json', 'r', false,
-            stream_context_create(
-                array(
-                    'http' => array(
-                        'method'        => 'POST',
-                        'content'       => http_build_query( array(
-                            'status' => $string,
-                        ) ),
-                        'ignore_errors' => true,
-                    ),
-                )
-            )
-        );
-
-        if ( $fp === false )
-        {
-            throw new iiClientException( "Could not connect." );
-        }
-
-        // Check the return value
-        $return = '';
-        while ( !feof( $fp ) )
-        {
-            $return .= fread( $fp, 1024 );
-        }
-
-        // Check if an error has been returned
-        $struct = json_decode( $return );
-        if ( isset( $struct->error ) )
-        {
-            throw new iiClientException( $struct->error );
-        }
-
-        fclose( $fp );
     }
 }
 
