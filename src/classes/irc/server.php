@@ -107,6 +107,7 @@ class Server
         $this->callbacks['NICK'] = array( array( $this, 'changeNick' ) );
         $this->callbacks['QUIT'] = array( array( $this, 'disconnectUser' ) );
         $this->callbacks['PING'] = array( array( $this, 'pong' ) );
+        $this->callbacks['USERHOST'] = array( array( $this, 'userHost' ) );
     }
 
     /**
@@ -386,6 +387,26 @@ class Server
     protected function pong( User $user, Message $message )
     {
         $this->sendServerMessage( $user, 'PONG twircd ' . implode( ' ', $message->params ) );
+    }
+
+    /**
+     * Pong to recieved ping from client
+     * 
+     * @param User $user 
+     * @param Message $message 
+     * @return void
+     */
+    protected function userHost( User $user, Message $message )
+    {
+        foreach ( $message->params as $nick )
+        {
+            // We only reply on USERHOST commands for the user itself, 
+            // everything else is up to other handlers
+            if ( $nick === $user->nick )
+            {
+                $this->sendServerMessage( $user, "302 {$user->nick} :{$user->nick}=+{$user->ident}@{$user->host}" );
+            }
+        }
     }
 
     /**
