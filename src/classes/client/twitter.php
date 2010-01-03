@@ -206,7 +206,7 @@ class Twitter extends \TwIRCd\Client
 
             if ( isset( $entry['name'] ) )
             {
-                $friend->status = $entry['name'];
+                $friend->realName = $entry['name'];
             }
         }
 

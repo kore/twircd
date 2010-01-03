@@ -88,10 +88,12 @@ class Server
      */
     protected function registerCallbacks()
     {
-        $this->ircServer->registerCallback( 'USER', array( $this, 'startup' ) );
-        $this->ircServer->registerCallback( 'PRIVMSG', array( $this, 'twitter' ) );
-        $this->ircServer->registerCallback( 'JOIN', array( $this, 'addSearch' ) );
-        $this->ircServer->registerCallback( 'cycle', array( $this, 'check' ) );
+        $this->ircServer->registerCallback( 'USER',     array( $this, 'startup' ) );
+        $this->ircServer->registerCallback( 'PRIVMSG',  array( $this, 'twitter' ) );
+        $this->ircServer->registerCallback( 'JOIN',     array( $this, 'addSearch' ) );
+        $this->ircServer->registerCallback( 'WHO',      array( $this, 'listFriends' ) );
+        $this->ircServer->registerCallback( 'WHOIS',    array( $this, 'getFriendInfo' ) );
+        $this->ircServer->registerCallback( 'cycle',    array( $this, 'check' ) );
     }
 
     /**
@@ -173,7 +175,7 @@ class Server
             {
                 return ( $friend->follower ? '+' : '' ) . $friend->name;
             },
-            $client->getFriends()
+            $this->clients[$user->nick]['friends'] = $client->getFriends()
         ) );
 
         $this->ircServer->send( $user, ":$user JOIN :&twitter" );
@@ -206,6 +208,56 @@ class Server
 
         $this->logger->log( E_NOTICE, "Twitter: " . $message->params[1] );
         $this->clients[$user->nick]['client']->updateStatus( $message->params[1] );
+    }
+
+    /**
+     * List friends
+     *
+     * Provide a list of all friends for the requested channel
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function listFriends( Irc\User $user, Irc\Message $message )
+    {
+        // WHO response for the user itself
+        $this->ircServer->sendServerMessage(
+            $this->clients[$user->nick]['user'],
+            "352 {$user->nick} {$message->params[0]} {$user->ident} {$user->host} twircd {$user->nick} H@ :0 {$user->realName}"
+        );
+
+        if ( $message->params[0] === '&twitter' )
+        {
+            // List all friends as away for the &twitter channel
+            foreach ( $this->clients[$user->nick]['friends'] as $friend )
+            {
+                $this->ircServer->sendServerMessage( 
+                    $this->clients[$user->nick]['user'],
+                    "352 {$user->nick} &twitter {$friend->name} twitter.com twircd {$friend->name} G :0 {$friend->realName}"
+                );
+            }
+        }
+
+        // End of responses
+        $this->ircServer->sendServerMessage(
+            $this->clients[$user->nick]['user'],
+            "315 {$user->nick} {$message->params[0]} :End of WHO list"
+        );
+    }
+
+    /**
+     * Get information about friend
+     *
+     * Get detailed information about the friend, as requested by WHOIS.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function getFriendInfo( Irc\User $user, Irc\Message $message )
+    {
+        return;
     }
 
     /**

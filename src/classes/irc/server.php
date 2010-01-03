@@ -254,7 +254,7 @@ class Server
             // Execute registered callbacks
             if ( !isset( $this->callbacks[$message->command] ) )
             {
-                $this->logger->log( E_NOTICE, "Unhandled command {$message->command}." );
+                $this->logger->log( E_WARNING, "Unhandled command {$message->command}." );
                 continue;
             }
 
