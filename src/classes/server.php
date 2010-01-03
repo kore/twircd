@@ -117,21 +117,29 @@ class Server
     {
         foreach ( $this->clients as $client )
         {
-            $messages = $client['client']->getUpdates();
-
-            foreach ( $messages as $message )
+            try
             {
-                $this->ircServer->sendMessage(
-                    $client['user'],
-                    $message->from,
-                    $message->to,
-                    $message->message
-                );
+                $messages = $client['client']->getUpdates();
+
+                foreach ( $messages as $message )
+                {
+                    $this->ircServer->sendMessage(
+                        $client['user'],
+                        $message->from,
+                        $message->to,
+                        $message->message
+                    );
+                }
+
+                if ( count( $messages ) )
+                {
+                    $this->configuration->setLastUpdateTime( time() );
+                }
             }
-
-            if ( count( $messages ) )
+            catch ( \Exception $e )
             {
-                $this->configuration->setLastUpdateTime( time() );
+                $this->logger->log( E_WARNING, 'An error occured: ' . $e->getMessage() );
+                $this->ircServer->sendMessage( $client['user'], 'twircd', '&twitter', '[error] ' . $e->getMessage() );
             }
         }
     }
