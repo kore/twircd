@@ -80,7 +80,7 @@ class Twitter extends \TwIRCd\Client
 
                 $messages[] = new Message(
                     $message['user']['screen_name'] . '!' . $message['user']['screen_name'] . '@twitter.com',
-                    '&twitter',
+                    '#twitter',
                     $this->unfoldUrls( html_entity_decode( $message['text'] ) )
                 );
             }
@@ -194,9 +194,20 @@ class Twitter extends \TwIRCd\Client
         $json = $this->httpRequest( 'GET', '/statuses/friends.json' );
 
         $friends = array();
-        foreach( $json as $friend )
+        foreach( $json as $entry )
         {
-            $friends[] = new Friend( $friend['screen_name'], $friend['status']['text'], $friend['name'] );
+            $friends[] = $friend = new Friend( $entry['screen_name'] );
+
+            if ( isset( $entry['status'] ) &&
+                 isset( $entry['status']['text'] ) )
+            {
+                $friend->status = $entry['status']['text'];
+            }
+
+            if ( isset( $entry['name'] ) )
+            {
+                $friend->status = $entry['name'];
+            }
         }
 
         return $friends;
@@ -266,10 +277,10 @@ class Twitter extends \TwIRCd\Client
         fclose( $fp );
         $data = json_decode( $data, true );
 
-        if ( isset( $data->error ) )
+        if ( isset( $data['error'] ) )
         {
             // On error, exit with error code
-            throw new \Exception( $data->error );
+            throw new \Exception( $data['error'] );
         }
 
         return $data;

@@ -77,13 +77,6 @@ class Message
     public $params;
 
     /**
-     * Text passed with command
-     * 
-     * @var string
-     */
-    public $text;
-
-    /**
      * Parse read string into a message object
      *
      * Parses IRC message, whiich conform to RFC 1459 into a IRC message object 
@@ -118,7 +111,12 @@ class Message
                    
             $message->command = $match['command'];
             $message->params  = preg_split( '(\\s+)', trim( $match['params'] ) );
-            $message->text    = isset( $match['text'] ) ? $match['text'] : null;
+
+            // The "text" should be considered as just another parameter
+            if ( isset( $match['text'] ) )
+            {
+                $message->params[] = $match['text'];
+            }
 
             return $message;
         }

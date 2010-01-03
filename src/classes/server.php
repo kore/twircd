@@ -132,6 +132,12 @@ class Server
      */
     public function startup( Irc\User $user, Irc\Message $message )
     {
+        if ( isset( $this->clients[$user->nick] ) )
+        {
+            $this->logger->log( E_WARNING, 'Ignoring user reregistratio.' );
+            return;
+        }
+
         $client = new Client\Twitter( $this->logger );
         $client->setCredentials( $user->nick, $user->password );
         $this->clients[$user->nick] = array(
@@ -147,14 +153,12 @@ class Server
             $client->getFriends()
         ) );
 
-        $this->ircServer->send( $user, ":$user JOIN &twitter" );
+        $this->ircServer->send( $user, ":$user JOIN :#twitter" );
         foreach ( explode( "\n", wordwrap( $friendList, 400 ) ) as $string )
         {
-            // Could not find any proper docs in RFC 2812 or 1459 why the channel 
-            // has to be the third parameter in the 353 message
-            $this->ircServer->sendServerMessage( $user, "353 = = &twitter :$string" );
+            $this->ircServer->sendServerMessage( $user, "353 {$user->nick} = #twitter :$string" );
         }
-        $this->ircServer->sendServerMessage( $user, "366 &twitter :End of NAMES list" );
+        $this->ircServer->sendServerMessage( $user, "366 {$user->nick} #twitter :End of NAMES list" );
         $client->queue( 'getTimeline', array( 1234567890 ) );
 
         // @todo: Join channels for configured searches
@@ -172,13 +176,13 @@ class Server
      */
     public function twitter( Irc\User $user, Irc\Message $message )
     {
-        if ( $message->params[0] !== '&twitter' )
+        if ( $message->params[0] !== '#twitter' )
         {
             return;
         }
 
-        $this->logger->log( E_NOTICE, "Twitter: " . $message->text );
-        $this->clients[$user->nick]['client']->updateStatus( $message->text );
+        $this->logger->log( E_NOTICE, "Twitter: " . $message->params[1] );
+        $this->clients[$user->nick]['client']->updateStatus( $message->params[1] );
     }
 
     /**

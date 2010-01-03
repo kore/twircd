@@ -225,6 +225,7 @@ class Server
         $data = '';
         while ( @socket_recv( $user->connection, $buffer, 1024, MSG_DONTWAIT ) )
         {
+            $this->logger->log( E_NOTICE, "Read buffer: $buffer" );
             $data .= $buffer;
         }
         $lines = preg_split( '(\r\n|\r|\n)', trim( $data ) );
@@ -234,11 +235,22 @@ class Server
             return;
         }
 
+        // @HACK: Bip violates the RFC by sending the USER command before the 
+        // NICK command, this hack reorders the commands to ensure valid 
+        // execution. The handling of the USER command actually requires the 
+        // NICK information.
+        if ( preg_match( '(USER.*NICK)s', $data ) )
+        {
+            $lines[3] = $lines[1];
+            unset( $lines[1] );
+        }
+
         foreach ( $lines as $line )
         {
             $this->logger->log( E_NOTICE, "Recieved from client: $line" );
             $message = Message::parseClientString( $this->logger, $line );
 
+            // Execute registered callbacks
             if ( !isset( $this->callbacks[$message->command] ) )
             {
                 $this->logger->log( E_NOTICE, "Unhandled command {$message->command}." );
@@ -288,7 +300,11 @@ class Server
      */
     public function sendMessage( User $user, $from, $to, $message )
     {
-        $this->send( $user, ":$from PRIVMSG $to :$message" );
+        $messages = preg_split( '(\r\n|\r|\n)', trim( $message ) );
+        foreach ( $messages as $message )
+        {
+            $this->send( $user, ":$from PRIVMSG $to :$message" );
+        }
     }
 
     /**
@@ -300,7 +316,15 @@ class Server
      */
     protected function changeNick( User $user, Message $message )
     {
-        $this->logger->log( E_NOTICE, "User changed nick to: {$message->params[0]}." );
+        $this->logger->log( E_NOTICE, "User changing nick to: {$message->params[0]}." );
+
+        if ( $user->nick !== null )
+        {
+            $this->logger->log( E_WARNING, 'Nick changing not supported.' );
+            $this->sendServerMessage( $user, "437 {$user->nick} {$message->params[0]} :Nick/channel is temporarily unavailable" );
+            return;
+        }
+
         $user->nick = $message->params[0];
     }
 
@@ -325,14 +349,31 @@ class Server
      */
     protected function registerUser( User $user, Message $message )
     {
+        // Ignore USER commands after the first one
+        if ( $user->ident )
+        {
+            $this->logger->log( E_WARNING, 'Ignoring additional user command.' );
+            $this->sendServerMessage( $user, "462 {$user->nick} :Unauthorized command (already registered)" );
+            return;
+        }
+
         $user->ident    = $message->params[0];
-        $user->realName = $message->text;
+        $user->realName = $message->params[3];
 
         // Send welcome messages as defined in RFC 2812
         $this->sendServerMessage( $user, "001 {$user->nick} :Welcome to the Internet Relay Network {$user}" );
         $this->sendServerMessage( $user, "002 {$user->nick} :Your host is twircd, running version " . \TwIRCd\VERSION );
         $this->sendServerMessage( $user, "003 {$user->nick} :This server was created " . date( 'r' ) );
         $this->sendServerMessage( $user, "004 {$user->nick} :twircd " . \TwIRCd\VERSION . " o t" );
+        $this->sendServerMessage( $user, "005 {$user->nick} PREFIX=(ov)@+ CHANTYPES=&# CHANMODES=,,,nt NICKLEN=23 NETWORK=BitlBee CASEMAPPING=rfc1459 MAXTARGETS=1 WATCH=128 :are supported by this server" );
+
+        // @todo: Send proper MOTD
+        $this->sendServerMessage( $user, "375 {$user->nick} :twircd Message Of The Day" );
+        $this->sendServerMessage( $user, "372 {$user->nick} :Welcome to the Twitter IRC Server" );
+        $this->sendServerMessage( $user, "376 {$user->nick} :End of MOTD" );
+
+        // Tell client about its nick
+        $this->sendServerMessage( $user, "NICK {$user->nick}" );
     }
 
     /**
@@ -361,7 +402,7 @@ class Server
             if ( $client === $user )
             {
                 $this->logger->log( E_NOTICE, "Disconnecting client {$user->nick}." );
-                $this->sendServerMessage( $user, 'QUIT :' . $message->text ?: 'Client exited' );
+                $this->sendServerMessage( $user, 'QUIT :' . $message->params[0] ?: 'Client exited' );
                 socket_close( $user->connection );
                 unset( $this->users[$nr] );
             }
