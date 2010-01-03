@@ -38,13 +38,16 @@ require 'classes/client/friend.php';
 require 'classes/client/message.php';
 require 'classes/client/twitter.php';
 
+require 'classes/configuration.php';
+require 'classes/configuration/xml.php';
 require 'classes/server.php';
 
 $logger = new Logger\StdOut();
 
 $twircd = new Server(
     $logger,
-    new Irc\Server( $logger, '127.0.0.1', 6667 )
+    new Irc\Server( $logger, '127.0.0.1', 6667 ),
+    new Configuration\Xml( __DIR__ . '/conf.xml' )
 );
 $twircd->run();
 

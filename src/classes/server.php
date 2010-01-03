@@ -56,6 +56,13 @@ class Server
     protected $clients;
 
     /**
+     * Configuration storage
+     * 
+     * @var Configuration
+     */
+    protected $configuration;
+
+    /**
      * Construct Twitter IRC server
      *
      * Provide a logger and an IRC server implementation.
@@ -64,11 +71,12 @@ class Server
      * @param \TwIRCd\Irc\Server $ircServer 
      * @return void
      */
-    public function __construct( \TwIRCd\Logger $logger, \TwIRCd\Irc\Server $ircServer )
+    public function __construct( \TwIRCd\Logger $logger, \TwIRCd\Irc\Server $ircServer, \TwIRCd\Configuration $configuration )
     {
-        $this->logger    = $logger;
-        $this->ircServer = $ircServer;
-        $this->clients   = array();
+        $this->logger        = $logger;
+        $this->ircServer     = $ircServer;
+        $this->clients       = array();
+        $this->configuration = $configuration;
 
         $this->registerCallbacks();
     }
@@ -120,6 +128,11 @@ class Server
                     $message->message
                 );
             }
+
+            if ( count( $messages ) )
+            {
+                $this->configuration->setLastUpdateTime( time() );
+            }
         }
     }
 
@@ -138,6 +151,8 @@ class Server
             return;
         }
 
+        // @todo: This should be configurable somehow, to use other 
+        // microblogging services instead.
         $client = new Client\Twitter( $this->logger );
         $client->setCredentials( $user->nick, $user->password );
         $this->clients[$user->nick] = array(
@@ -159,7 +174,7 @@ class Server
             $this->ircServer->sendServerMessage( $user, "353 {$user->nick} = &twitter :$string" );
         }
         $this->ircServer->sendServerMessage( $user, "366 {$user->nick} &twitter :End of NAMES list" );
-        $client->queue( 'getTimeline', array( 1234567890 ) );
+        $client->queue( 'getTimeline', array( $this->configuration->getLastUpdateTime() ) );
 
         // @todo: Join channels for configured searches
     }
