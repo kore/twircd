@@ -109,7 +109,7 @@ class Message
                 $msg['server'] = $match['host'];
             }
                    
-            $message->command = $match['command'];
+            $message->command = strtoupper( $match['command'] );
             $message->params  = preg_split( '(\\s+)', trim( $match['params'] ) );
 
             // The "text" should be considered as just another parameter

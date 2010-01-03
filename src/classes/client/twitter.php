@@ -196,7 +196,7 @@ class Twitter extends \TwIRCd\Client
         $friends = array();
         foreach( $json as $entry )
         {
-            $friends[] = $friend = new Friend( $entry['screen_name'] );
+            $friends[$entry['screen_name']] = $friend = new Friend( $entry['screen_name'] );
 
             if ( isset( $entry['status'] ) &&
                  isset( $entry['status']['text'] ) )

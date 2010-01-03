@@ -257,7 +257,23 @@ class Server
      */
     public function getFriendInfo( Irc\User $user, Irc\Message $message )
     {
-        return;
+        if ( $message->params[0] === $user->nick )
+        {
+            $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "311 {$user->nick} {$user->nick} {$user->ident} {$user->host} * :{$user->realName}" );
+            $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "318 {$user->nick} {$user->nick} :End of /WHOIS list." );
+            return;
+        }
+
+        if ( !isset( $this->clients[$user->nick]['friends'][$message->params[0]] ) )
+        {
+            $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "401 {$user->nick} {$message->params[0]} :No such nick/channel" );
+            return;
+        }
+
+        $friend = $this->clients[$user->nick]['friends'][$message->params[0]];
+        $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "311 {$user->nick} {$friend->name} {$friend->name} twitter.com * :{$friend->realName}" );
+        $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "301 :{$friend->status}" );
+        $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "318 {$user->nick} {$friend->name} :End of /WHOIS list." );
     }
 
     /**
