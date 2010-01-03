@@ -153,12 +153,12 @@ class Server
             $client->getFriends()
         ) );
 
-        $this->ircServer->send( $user, ":$user JOIN :#twitter" );
+        $this->ircServer->send( $user, ":$user JOIN :&twitter" );
         foreach ( explode( "\n", wordwrap( $friendList, 400 ) ) as $string )
         {
-            $this->ircServer->sendServerMessage( $user, "353 {$user->nick} = #twitter :$string" );
+            $this->ircServer->sendServerMessage( $user, "353 {$user->nick} = &twitter :$string" );
         }
-        $this->ircServer->sendServerMessage( $user, "366 {$user->nick} #twitter :End of NAMES list" );
+        $this->ircServer->sendServerMessage( $user, "366 {$user->nick} &twitter :End of NAMES list" );
         $client->queue( 'getTimeline', array( 1234567890 ) );
 
         // @todo: Join channels for configured searches
@@ -176,7 +176,7 @@ class Server
      */
     public function twitter( Irc\User $user, Irc\Message $message )
     {
-        if ( $message->params[0] !== '#twitter' )
+        if ( $message->params[0] !== '&twitter' )
         {
             return;
         }

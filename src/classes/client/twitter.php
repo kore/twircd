@@ -80,7 +80,7 @@ class Twitter extends \TwIRCd\Client
 
                 $messages[] = new Message(
                     $message['user']['screen_name'] . '!' . $message['user']['screen_name'] . '@twitter.com',
-                    '#twitter',
+                    '&twitter',
                     $this->unfoldUrls( html_entity_decode( $message['text'] ) )
                 );
             }
