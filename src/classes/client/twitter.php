@@ -225,7 +225,7 @@ class Twitter extends \TwIRCd\Client
      */
     protected function httpRequest( $method, $path, array $data = array() )
     {
-        $url = 'http://' . urlencode( $this->user ) . ':' . urlencode( $this->password ) . '@' . $this->baseUrl . $path;
+        $url = 'http://' . urlencode( $this->user ) . ':' . ( $password = urlencode( $this->password ) ) . '@' . $this->baseUrl . $path;
 
         // Append data to URL for GET requests
         if ( ( $method === 'GET' ) && 
@@ -253,7 +253,7 @@ class Twitter extends \TwIRCd\Client
         //
         // Silence error messages about connection failure or similar, those are
         // somehow expected with twitter.
-        $this->logger->log( E_NOTICE, $url );
+        $this->logger->log( E_NOTICE, 'Request URL: ' . str_replace( $password, '***', $url ) );
         $fp = @fopen( $url, 'r', false, stream_context_create( $options ) );
 
         if ( $fp === false )
