@@ -79,6 +79,7 @@ abstract class Client
      */
     protected $updateTimes = array(
         'getTimeline'       => 60,
+        'getMentions'       => 180,
         'getDirectMessages' => 60,
         'getSearchResults'  => 300,
     );
@@ -283,6 +284,21 @@ abstract class Client
      * @return array
      */
     abstract public function getTimeline();
+
+    /**
+     * Receive mentions
+     *
+     * Receive mentions by other users from the microblogging service.
+     *
+     * Returns an array of message objects.
+     *
+     * Schould only be accessed indirectly through the getUpdates() method, 
+     * which maintains a request queue to respect the rate limits of the 
+     * microblogging service.
+     *
+     * @return array
+     */
+    abstract public function getMentions();
 
     /**
      * Receive direct messages

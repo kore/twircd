@@ -55,35 +55,25 @@ class Twitter extends \TwIRCd\Client
      */
     public function getTimeline()
     {
-        $since = $this->configuration->getLastUpdate( 'friends_timeline' );
+        return $this->getMessages( '/statuses/home_timeline', 'friends_timeline' );
+    }
 
-        $parameters = array( 'count' => 50 );
-        if ( $since !== null )
-        {
-            $parameters['since_id'] = $since;
-        }
-
-        $this->logger->log( E_NOTICE, "Retrive friends timeline for user {$this->user}." );
-        $data = $this->httpRequest( 'GET', '/statuses/home_timeline.json', $parameters );
-
-        $messages = array();
-        if ( count( $data ) && is_array( $data ) )
-        {
-            $data = array_reverse( $data );
-            foreach( $data as $message )
-            {
-                $messages[] = new Message(
-                    $lastId = (string) $message['id'],
-                    $message['user']['screen_name'] . '!' . $message['user']['screen_name'] . '@twitter.com',
-                    '&twitter',
-                    $this->unfoldUrls( html_entity_decode( $message['text'] ) )
-                );
-            }
-
-            $this->configuration->setLastUpdate( 'friends_timeline', $lastId );
-        }
-
-        return $messages;
+    /**
+     * Receive mentions
+     *
+     * Receive mentions by other users from the microblogging service.
+     *
+     * Returns an array of message objects.
+     *
+     * Schould only be accessed indirectly through the getUpdates() method, 
+     * which maintains a request queue to respect the rate limits of the 
+     * microblogging service.
+     *
+     * @return array
+     */
+    public function getMentions()
+    {
+        return $this->getMessages( '/statuses/mentions', 'mentions' );
     }
 
     /**
@@ -101,8 +91,14 @@ class Twitter extends \TwIRCd\Client
      */
     public function getDirectMessages()
     {
-        // @todo: Implement
-        return array();
+        $messages = $this->getMessages( '/direct_messages', 'direct_messages' );
+
+        // Redirect messages, so that they will be recieved in a query
+        foreach ( $messages as $message )
+        {
+            $message->to = $this->user;
+        }
+        return $messages;
     }
 
     /**
@@ -204,6 +200,57 @@ class Twitter extends \TwIRCd\Client
         }
 
         return $friends;
+    }
+
+    /**
+     * Receive a set of messages from service
+     *
+     * Receives a set of messages of the specified type (required for the 
+     * associated configuration key), from the specified path.
+     *
+     * Returns an array of Message objects.
+     * 
+     * @param string $path 
+     * @param string $type 
+     * @param int $count
+     * @return array
+     */
+    protected function getMessages ( $path, $type, $count = 20 )
+    {
+        $since = $this->configuration->getLastUpdate( $type );
+
+        $parameters = array( 'count' => $count );
+        if ( $since !== null )
+        {
+            $parameters['since_id'] = $since;
+        }
+
+        $this->logger->log( E_NOTICE, "Retrive $type messages for user {$this->user}." );
+        $data = $this->httpRequest( 'GET', "$path.json", $parameters );
+
+        $messages = array();
+        if ( !count( $data ) || !is_array( $data ) )
+        {
+            return array();
+        }
+
+        $data = array_reverse( $data );
+        foreach( $data as $message )
+        {
+            // The user key is different in direct messages and timeline 
+            // messages
+            $user = isset( $message['user'] ) ? 'user' : 'sender';
+
+            $messages[] = new Message(
+                $lastId = (string) $message['id'],
+                $message[$user]['screen_name'] . '!' . $message[$user]['screen_name'] . '@twitter.com',
+                '&twitter',
+                $this->unfoldUrls( html_entity_decode( $message['text'] ) )
+            );
+        }
+
+        $this->configuration->setLastUpdate( $type, $lastId );
+        return $messages;
     }
 
     /**

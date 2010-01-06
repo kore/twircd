@@ -57,7 +57,8 @@ class Xml extends \TwIRCd\Configuration
     {
         $this->file     = $file;
         $this->document = new \DOMDocument();
-        $this->document->formatOutput = true;
+        $this->document->formatOutput       = true;
+        $this->document->preserveWhiteSpace = false;
 
         if ( is_file( $file ) )
         {
@@ -120,6 +121,10 @@ class Xml extends \TwIRCd\Configuration
                 $container = $this->document->documentElement->appendChild(
                     $this->document->createElement( 'updates' )
                 );
+            }
+            else
+            {
+                $container = $container->item( 0 );
             }
 
             $container->appendChild(

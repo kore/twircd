@@ -180,6 +180,8 @@ class Server
         }
         $this->ircServer->sendServerMessage( $user, "366 {$user->nick} &twitter :End of NAMES list" );
         $client->queue( 'getTimeline' );
+        $client->queue( 'getMentions' );
+        $client->queue( 'getDirectMessages' );
 
         // @todo: Join channels for configured searches
     }
