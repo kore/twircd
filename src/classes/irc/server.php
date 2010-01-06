@@ -226,7 +226,6 @@ class Server
         $data = '';
         while ( @socket_recv( $user->connection, $buffer, 1024, MSG_DONTWAIT ) )
         {
-            $this->logger->log( E_NOTICE, "Read buffer: $buffer" );
             $data .= $buffer;
         }
         $lines = preg_split( '(\r\n|\r|\n)', trim( $data ) );
