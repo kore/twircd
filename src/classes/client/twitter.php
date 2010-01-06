@@ -64,7 +64,7 @@ class Twitter extends \TwIRCd\Client
         }
 
         $this->logger->log( E_NOTICE, "Retrive friends timeline for user {$this->user}." );
-        $data = $this->httpRequest( 'GET', '/statuses/friends_timeline.json', $parameters );
+        $data = $this->httpRequest( 'GET', '/statuses/home_timeline.json', $parameters );
 
         $messages = array();
         if ( count( $data ) && is_array( $data ) )
