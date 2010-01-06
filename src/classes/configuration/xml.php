@@ -129,7 +129,7 @@ class Xml extends \TwIRCd\Configuration
             return $this->store();
         }
 
-        $updateTime->item( 0 )->textContent = $value;
+        $updateTime->item( 0 )->nodeValue = $value;
         return $this->store();
     }
 
