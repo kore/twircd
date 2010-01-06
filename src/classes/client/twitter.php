@@ -60,6 +60,7 @@ class Twitter extends \TwIRCd\Client
         $parameters = array( 'count' => 50 );
         if ( $since !== null )
         {
+            $lastId                 = $since;
             $parameters['since_id'] = $since;
         }
 
@@ -72,6 +73,13 @@ class Twitter extends \TwIRCd\Client
             $data = array_reverse( $data );
             foreach( $data as $message )
             {
+                if ( $message['id'] == $since )
+                {
+                    // Twitter sometimes sends the message specified as last ID 
+                    // again, too. Omit this one.
+                    continue;
+                }
+
                 $messages[] = new Message(
                     $lastId = (string) $message['id'],
                     $message['user']['screen_name'] . '!' . $message['user']['screen_name'] . '@twitter.com',
