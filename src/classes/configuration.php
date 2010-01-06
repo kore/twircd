@@ -38,19 +38,21 @@ abstract class Configuration
      *
      * Get timestamp of last performed update
      * 
-     * @return int
+     * @param string $type 
+     * @return string
      */
-    abstract public function getLastUpdateTime();
+    abstract public function getLastUpdate( $type );
 
     /**
      * Set last update time
      *
      * Set timestamp of last performed update
      * 
-     * @param mixed $time 
+     * @param string $type 
+     * @param string $value 
      * @return void
      */
-    abstract public function setLastUpdateTime( $time );
+    abstract public function setLastUpdate( $type, $value );
 
     /**
      * Set search term

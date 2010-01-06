@@ -84,18 +84,19 @@ class Xml extends \TwIRCd\Configuration
      *
      * Get timestamp of last performed update
      * 
-     * @return int
+     * @param string $type 
+     * @return string
      */
-    public function getLastUpdateTime()
+    public function getLastUpdate( $type )
     {
         $xpath = new \DOMXPath( $this->document );
-        $updateTime = $xpath->query( '/config/update' );
+        $updateTime = $xpath->query( '/config/updates/update[@type = "' . htmlspecialchars( $type ) . '"]' );
         if ( !$updateTime->length )
         {
-            return time();
+            return null;
         }
 
-        return (int) $updateTime->item( 0 )->textContent;
+        return $updateTime->item( 0 )->textContent;
     }
 
     /**
@@ -103,22 +104,32 @@ class Xml extends \TwIRCd\Configuration
      *
      * Set timestamp of last performed update
      * 
-     * @param mixed $time 
+     * @param string $type 
+     * @param string $value 
      * @return void
      */
-    public function setLastUpdateTime( $time )
+    public function setLastUpdate( $type, $value )
     {
         $xpath = new \DOMXPath( $this->document );
-        $updateTime = $xpath->query( '/config/update' );
+        $updateTime = $xpath->query( '/config/updates/update[@type = "' . htmlspecialchars( $type ) . '"]' );
         if ( !$updateTime->length )
         {
-            $this->document->documentElement->appendChild(
-                $this->document->createElement( 'update', $time )
+            $container = $xpath->query( '/config/updates' );
+            if ( !$container->length )
+            {
+                $container = $this->document->documentElement->appendChild(
+                    $this->document->createElement( 'updates' )
+                );
+            }
+
+            $container->appendChild(
+                $update = $this->document->createElement( 'update', $value )
             );
+            $update->setAttribute( 'type', $type );
             return $this->store();
         }
 
-        $updateTime->item( 0 )->textContent = $time;
+        $updateTime->item( 0 )->textContent = $value;
         return $this->store();
     }
 

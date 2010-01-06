@@ -34,6 +34,13 @@ namespace TwIRCd\Client;
 class Message
 {
     /**
+     * Message ID
+     * 
+     * @var string
+     */
+    public $id;
+
+    /**
      * Author of the message
      * 
      * @var string
@@ -57,13 +64,15 @@ class Message
     /**
      * Construct message from its parameters.
      * 
+     * @param string $id 
      * @param string $from 
      * @param string $to 
      * @param string $message 
      * @return void
      */
-    public function __construct( $from, $to, $message )
+    public function __construct( $id, $from, $to, $message )
     {
+        $this->id      = $id;
         $this->from    = $from;
         $this->to      = $to;
         $this->message = $message;

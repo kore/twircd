@@ -132,11 +132,6 @@ class Server
                         $message->message
                     );
                 }
-
-                if ( count( $messages ) )
-                {
-                    $this->configuration->setLastUpdateTime( time() );
-                }
             }
             catch ( \Exception $e )
             {
@@ -163,7 +158,7 @@ class Server
 
         // @todo: This should be configurable somehow, to use other 
         // microblogging services instead.
-        $client = new Client\Twitter( $this->logger );
+        $client = new Client\Twitter( $this->logger, $this->configuration );
         $client->setCredentials( $user->nick, $user->password );
         $this->clients[$user->nick] = array(
             'user'   => $user,
@@ -184,7 +179,7 @@ class Server
             $this->ircServer->sendServerMessage( $user, "353 {$user->nick} = &twitter :$string" );
         }
         $this->ircServer->sendServerMessage( $user, "366 {$user->nick} &twitter :End of NAMES list" );
-        $client->queue( 'getTimeline', array( $this->configuration->getLastUpdateTime() ) );
+        $client->queue( 'getTimeline' );
 
         // @todo: Join channels for configured searches
     }

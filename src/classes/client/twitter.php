@@ -43,8 +43,7 @@ class Twitter extends \TwIRCd\Client
     /**
      * Receive new messages
      *
-     * Receive new messages from the timeline microblogging service, since the 
-     * last request, specified by a time stamp.
+     * Receive new messages from the timeline microblogging service.
      *
      * Returns an array of message objects.
      *
@@ -52,16 +51,20 @@ class Twitter extends \TwIRCd\Client
      * which maintains a request queue to respect the rate limits of the 
      * microblogging service.
      *
-     * @param int $since 
      * @return array
      */
-    public function getTimeline( $since )
+    public function getTimeline()
     {
+        $since = $this->configuration->getLastUpdate( 'friends_timeline' );
+
+        $parameters = array( 'count' => 50 );
+        if ( $since !== null )
+        {
+            $parameters['since_id'] = $since;
+        }
+
         $this->logger->log( E_NOTICE, "Retrive friends timeline for user {$this->user}." );
-        $data = $this->httpRequest( 'GET', '/statuses/friends_timeline.json', array(
-            'since' => date( DATE_RFC822, $since ),
-            'count' => 50,
-        ) );
+        $data = $this->httpRequest( 'GET', '/statuses/friends_timeline.json', $parameters );
 
         $messages = array();
         if ( count( $data ) && is_array( $data ) )
@@ -69,21 +72,15 @@ class Twitter extends \TwIRCd\Client
             $data = array_reverse( $data );
             foreach( $data as $message )
             {
-                // Twitter some times still sends all messages, even only new
-                // message since some date are requested, so we need to recheck
-                // that manually.
-                $date = new \DateTime( $message['created_at'] );
-                if ( $date->getTimestamp() < $since )
-                {
-                    continue;
-                }
-
                 $messages[] = new Message(
+                    $lastId = (string) $message['id'],
                     $message['user']['screen_name'] . '!' . $message['user']['screen_name'] . '@twitter.com',
                     '&twitter',
                     $this->unfoldUrls( html_entity_decode( $message['text'] ) )
                 );
             }
+
+            $this->configuration->setLastUpdate( 'friends_timeline', $lastId );
         }
 
         return $messages;
@@ -92,8 +89,7 @@ class Twitter extends \TwIRCd\Client
     /**
      * Receive direct messages
      *
-     * Receive new direct messages from the microblogging service, since the 
-     * las request, specified as a time stamp.
+     * Receive new direct messages from the microblogging service.
      *
      * Returns an array of message objects.
      *
@@ -101,10 +97,9 @@ class Twitter extends \TwIRCd\Client
      * which maintains a request queue to respect the rate limits of the 
      * microblogging service.
      *
-     * @param int $since 
      * @return array
      */
-    public function getDirectMessages( $since )
+    public function getDirectMessages()
     {
         // @todo: Implement
         return array();
@@ -113,8 +108,7 @@ class Twitter extends \TwIRCd\Client
     /**
      * Receive search results
      *
-     * Receive new search results from the microblogging service, since the 
-     * last request, specified as a time stamp.
+     * Receive new search results from the microblogging service.
      *
      * Returns an array of message objects.
      *
@@ -122,12 +116,11 @@ class Twitter extends \TwIRCd\Client
      * which maintains a request queue to respect the rate limits of the 
      * microblogging service.
      *
-     * @param int $since 
      * @param string $channel 
      * @param string $search 
      * @return array
      */
-    public function getSearchResults( $since, $channel, $search )
+    public function getSearchResults( $channel, $search )
     {
         // @todo: Implement
         return array();

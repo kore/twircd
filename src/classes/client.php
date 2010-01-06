@@ -98,6 +98,20 @@ abstract class Client
     protected $password;
 
     /**
+     * Logger
+     * 
+     * @var \TwIRCd\Logger
+     */
+    protected $logger;
+
+    /**
+     * Configuration object, storing the last update times / IDs
+     * 
+     * @var \TwIRCd\Configuration
+     */
+    protected $configuration;
+
+    /**
      * Regular expression to "parse" URLs out of text. 
      */
     const URL_REGEX = '(
@@ -125,11 +139,13 @@ abstract class Client
      * Construct client from logger
      * 
      * @param \TwIRCd\Logger $logger 
+     * @param \TwIRCd\Configuration $configuration 
      * @return void
      */
-    public function __construct( \TwIRCd\Logger $logger )
+    public function __construct( \TwIRCd\Logger $logger, \TwIRCd\Configuration $configuration )
     {
-        $this->logger = $logger;
+        $this->logger        = $logger;
+        $this->configuration = $configuration;
     }
 
     /**
@@ -210,7 +226,7 @@ abstract class Client
      * @param array $parameters 
      * @return void
      */
-    public function queue( $type, array $parameters )
+    public function queue( $type, array $parameters = array() )
     {
         $this->queue[] = array(
             'type'       => $type,
@@ -256,8 +272,7 @@ abstract class Client
     /**
      * Receive new messages
      *
-     * Receive new messages from the timeline microblogging service, since the 
-     * last request, specified by a time stamp.
+     * Receive new messages from the timeline microblogging service.
      *
      * Returns an array of message objects.
      *
@@ -265,16 +280,14 @@ abstract class Client
      * which maintains a request queue to respect the rate limits of the 
      * microblogging service.
      *
-     * @param int $since 
      * @return array
      */
-    abstract public function getTimeline( $since );
+    abstract public function getTimeline();
 
     /**
      * Receive direct messages
      *
-     * Receive new direct messages from the microblogging service, since the 
-     * las request, specified as a time stamp.
+     * Receive new direct messages from the microblogging service.
      *
      * Returns an array of message objects.
      *
@@ -282,16 +295,14 @@ abstract class Client
      * which maintains a request queue to respect the rate limits of the 
      * microblogging service.
      *
-     * @param int $since 
      * @return array
      */
-    abstract public function getDirectMessages( $since );
+    abstract public function getDirectMessages();
 
     /**
      * Receive search results
      *
-     * Receive new search results from the microblogging service, since the 
-     * last request, specified as a time stamp.
+     * Receive new search results from the microblogging service
      *
      * Returns an array of message objects.
      *
@@ -299,12 +310,11 @@ abstract class Client
      * which maintains a request queue to respect the rate limits of the 
      * microblogging service.
      *
-     * @param int $since 
      * @param string $channel 
      * @param string $search 
      * @return array
      */
-    abstract public function getSearchResults( $since, $channel, $search );
+    abstract public function getSearchResults( $channel, $search );
 
     /**
      * Update status
