@@ -415,9 +415,9 @@ class Twitter extends \TwIRCd\Client
 
         // The additional factor of 1.1 is used to ensure, that we really do 
         // not touch the rate limit.
-        $this->queueFactor = ( $percentTime / $percentRequests ) * 1.1;
+        $this->queueFactor = ( $percentRequests / $percentTime ) * 1.1;
 
-        $this->logger->log( E_NOTICE, "Set queue factor to {$this->queueFactor}." );
+        $this->logger->log( E_NOTICE, "Set queue factor to ( $remainingRequests / $requestsPerHour ) / ( $remainingTime / 3600 ) = {$this->queueFactor}." );
     }
 
     /**
