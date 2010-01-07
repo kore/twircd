@@ -90,6 +90,7 @@ class Server
     {
         $this->ircServer->registerCallback( 'USER',     array( $this, 'startup' ) );
         $this->ircServer->registerCallback( 'PRIVMSG',  array( $this, 'twitter' ) );
+        $this->ircServer->registerCallback( 'PRIVMSG',  array( $this, 'directMessage' ) );
         $this->ircServer->registerCallback( 'JOIN',     array( $this, 'addSearch' ) );
         $this->ircServer->registerCallback( 'WHO',      array( $this, 'listFriends' ) );
         $this->ircServer->registerCallback( 'WHOIS',    array( $this, 'getFriendInfo' ) );
@@ -205,6 +206,28 @@ class Server
 
         $this->logger->log( E_NOTICE, "Twitter: " . $message->params[1] );
         $this->clients[$user->nick]['client']->updateStatus( $message->params[1] );
+    }
+
+    /**
+     * A direct message should be sent
+     *
+     * If the target of the message received from the user is in his friends 
+     * list, it means this is a direct message.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function directMessage( Irc\User $user, Irc\Message $message )
+    {
+        $target = $message->params[0];
+        if ( !isset( $this->clients[$user->nick]['friends'][$target] ) )
+        {
+            return;
+        }
+
+        $this->logger->log( E_NOTICE, "Direct message to $target: " . $message->params[1] );
+        $this->clients[$user->nick]['client']->sendDirectMessage( $target, $message->params[1] );
     }
 
     /**

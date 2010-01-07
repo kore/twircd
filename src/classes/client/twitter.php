@@ -134,6 +134,53 @@ class Twitter extends \TwIRCd\Client
      */
     public function updateStatus( $string )
     {
+        $this->httpRequest(
+            'POST',
+            '/statuses/update.json',
+            array(
+                'status' => $this->shortenMessage( $string ),
+            )
+        );
+    }
+
+    /**
+     * Send a direct message
+     *
+     * Send given string as a direct message to another user using the given 
+     * microblogging service. There might be some restrictions on the message, 
+     * depending on the service. Violating these an exception might be thrown.
+     * 
+     * @param string $user 
+     * @param string $string 
+     * @return void
+     */
+    public function sendDirectMessage( $user, $string )
+    {
+        $this->httpRequest(
+            'POST',
+            '/direct_messages/new.json',
+            array(
+                'screen_name' => $user,
+                'text'        => $this->shortenMessage( $string ),
+            )
+        );
+    }
+
+    /**
+     * Shorten message
+     *
+     * Shortens a message by replacing URLs with tiny URLs, if it is too long, 
+     * and throws an exception if the message couldn't be shortened 
+     * sufficeiently.
+     *
+     * Returns the shortened message on success.
+     * 
+     * @param string $string 
+     * @param int $length 
+     * @return string
+     */
+    protected function shortenMessage( $string, $length = 140 )
+    {
         // Try to shorten all included URLs, if message is too long otherwise
         if ( strlen( $string ) > 140 )
         {
@@ -151,23 +198,7 @@ class Twitter extends \TwIRCd\Client
             );
         }
 
-        $this->httpRequest( 'POST', '/statuses/update.json', array( 'status' => $string ) );
-    }
-
-    /**
-     * Send a direct message
-     *
-     * Send given string as a direct message to another user using the given 
-     * microblogging service. There might be some restrictions on the message, 
-     * depending on the service. Violating these an exception might be thrown.
-     * 
-     * @param string $user 
-     * @param string $string 
-     * @return void
-     */
-    public function sendDirectMessage( $user, $string )
-    {
-        // @todo: Implement
+        return $string;
     }
 
     /**
