@@ -308,6 +308,30 @@ class Twitter extends \TwIRCd\Client
             throw new \Exception( 'Could not connect to service.' );
         }
 
+        // Extract response headers
+        $metaData   = stream_get_meta_data( $fp );
+        // The array content depends on whether PHP is compiled with 
+        // --with-curl-wrappers or not. To handle both variants, this check is 
+        // required.
+        $rawHeaders = isset( $metaData['wrapper_data']['headers'] ) ? $metaData['wrapper_data']['headers'] : $metaData['wrapper_data'];
+        $headers    = array();
+        foreach ( $rawHeaders as $lineContent )
+        {
+            // Extract header values
+            if ( preg_match( '(^HTTP/(?P<version>\d+\.\d+)\s+(?P<status>\d+))S', $lineContent, $match ) )
+            {
+                $headers['version'] = $match['version'];
+                $headers['status']  = (int) $match['status'];
+            }
+            else
+            {
+                list( $key, $value ) = explode( ':', $lineContent, 2 );
+                $headers[strtolower( $key )] = ltrim( $value );
+            }
+        }
+
+        $this->updateRateLimit( $headers );
+
         // Read all the returned stuff
         $data = '';
         while ( !feof( $fp ) )
@@ -324,6 +348,32 @@ class Twitter extends \TwIRCd\Client
         }
 
         return $data;
+    }
+
+    /**
+     * Update rate limit
+     *
+     * Updates the rate limit factor, depending on the response twitter sent. 
+     * Each response from twitter tells which amount of requests is still 
+     * available in the current time slot, so that we can guessimate a new rate 
+     * limit factor.
+     *
+     * This method sets the $queueFactor property, which influences the request 
+     * times to the Twitter API.
+     * 
+     * @param array $httpHeaders 
+     * @return void
+     */
+    protected function updateRateLimit( array $httpHeaders )
+    {
+        $remainingTime     = $httpHeaders['x-ratelimit-reset'] - time();
+        $remainingRequests = $httpHeaders['x-ratelimit-remaining'];
+        $requestsPerHour   = $httpHeaders['x-ratelimit-limit'];
+        $percentTime       = 1 - $remainingTime / 3600;
+        $percentRequests   = 1 - $remainingRequests / $requestsPerHour;
+        $this->queueFactor = ( $percentTime / $percentRequests ) * 1.1;
+
+        $this->logger->log( E_NOTICE, "Set queue factor to {$this->queueFactor}." );
     }
 
     /**
