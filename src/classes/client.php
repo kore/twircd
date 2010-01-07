@@ -81,7 +81,7 @@ abstract class Client
         'getTimeline'       => 60,
         'getMentions'       => 180,
         'getDirectMessages' => 60,
-        'getSearchResults'  => 60,
+        'getSearchResults'  => 180,
     );
 
     /**
