@@ -81,7 +81,7 @@ abstract class Client
         'getTimeline'       => 60,
         'getMentions'       => 180,
         'getDirectMessages' => 60,
-        'getSearchResults'  => 300,
+        'getSearchResults'  => 60,
     );
 
     /**
@@ -255,12 +255,24 @@ abstract class Client
         {
             if ( $entry['scheduled'] < $current )
             {
-                $result = call_user_func_array(
-                    array( $this, $entry['type'] ),
-                    $entry['parameters']
-                );
-                $entry['parameters'][0] = $current;
-                $entry['scheduled']     = $current + $this->queueFactor * $this->updateTimes[$entry['type']];
+                $result = array();
+
+                try
+                {
+                    $result = call_user_func_array(
+                        array( $this, $entry['type'] ),
+                        $entry['parameters']
+                    );
+                }
+                catch ( \Exception $e )
+                {
+                    // Ignore these errors, they most likely mean connection 
+                    // failures, which are just too common with twitter, to 
+                    // report them to the user.
+                    $this->logger->log( E_ERROR, $e->getMessage() );
+                }
+
+                $entry['scheduled'] = $current + $this->queueFactor * $this->updateTimes[$entry['type']];
                 $this->logger->log( E_NOTICE, "Rescheduled item {$entry['type']} at " . date( 'r', $entry['scheduled'] ) . '.' );
 
                 return $result;

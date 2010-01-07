@@ -41,6 +41,13 @@ class Twitter extends \TwIRCd\Client
     protected $baseUrl = 'twitter.com';
 
     /**
+     * Search base URL
+     * 
+     * @var string
+     */
+    protected $searchBaseUrl = 'search.twitter.com';
+
+    /**
      * Receive new messages
      *
      * Receive new messages from the timeline microblogging service.
@@ -115,11 +122,44 @@ class Twitter extends \TwIRCd\Client
      * @param string $channel 
      * @return array
      */
-    public function getSearchResults( $channel )
+    public function getSearchResults( $channel, $count = 10 )
     {
-        $this->logger->log( E_WARNING, "Search not implemented yet." );
-        // @todo: Implement
-        return array();
+        $searches   = $this->configuration->getSearches();
+        $searchTerm = $searches[$channel];
+
+        $this->logger->log( E_NOTICE, "Executing search for channel $channel: $searchTerm" );
+        $since = $this->configuration->getLastUpdate( $type = 'search-' . $channel );
+
+        $parameters = array(
+            'count' => $count,
+            'q'     => $searchTerm,
+        );
+        if ( $since !== null )
+        {
+            $parameters['since_id'] = $since;
+        }
+
+        $data = $this->httpRequest( 'GET', '/search.json', $parameters, "http://{$this->searchBaseUrl}" );
+
+        $messages = array();
+        if ( !count( $data ) || !is_array( $data ) || !count( $data['results'] ) )
+        {
+            return array();
+        }
+
+        $results = array_reverse( $data['results'] );
+        foreach( $results as $message )
+        {
+            $messages[] = new Message(
+                (string) $message['id'],
+                $message['from_user'] . '!' . $message['from_user'] . '@twitter.com',
+                $channel,
+                $this->unfoldUrls( html_entity_decode( $message['text'] ) )
+            );
+        }
+
+        $this->configuration->setLastUpdate( $type, $data['max_id'] );
+        return $messages;
     }
 
     /**
@@ -301,9 +341,10 @@ class Twitter extends \TwIRCd\Client
      * @param array $data 
      * @return array
      */
-    protected function httpRequest( $method, $path, array $data = array() )
+    protected function httpRequest( $method, $path, array $data = array(), $baseUrl = null )
     {
-        $url = 'http://' . urlencode( $this->user ) . ':' . ( $password = urlencode( $this->password ) ) . '@' . $this->baseUrl . $path;
+        $password = '';
+        $url      = ( ( $baseUrl === null ) ? 'http://' . urlencode( $this->user ) . ':' . ( $password = urlencode( $this->password ) ) . '@' . $this->baseUrl : $baseUrl ) . $path;
 
         // Append data to URL for GET requests
         if ( ( $method === 'GET' ) && count( $data ) )
@@ -449,99 +490,6 @@ class Twitter extends \TwIRCd\Client
         $this->queueFactor = max( 1, ( $percentTime / $percentRequests ) * 1.1 );
 
         $this->logger->log( E_NOTICE, "Set queue factor to ( $remainingTime / 3600 ) / ( $remainingRequests / $requestsPerHour ) = ( $percentTime / $percentRequests ) = {$this->queueFactor}." );
-    }
-
-    /**
-     * Convert search term feeds to messages
-     *
-     * Fetch the RSS feed for the given search term and convert all messages in
-     * the result, which are not posted by "friends" since the last fetch to
-     * message objects, which thena re returned.
-     *
-     * Returns an array of iiMessage objects.
-     *
-     * @param string $term
-     * @return array
-     */
-    public function oldfetchSearch( $term )
-    {
-        $lastMessage = $this->storage->get( $key = $this->key . '/' . $this->credentials->user . '_search_' . preg_replace( '([^A-Za-z]+)', '', $term ) );
-        $friends = $this->getFriends();
-
-        // Receive all new messages from RSS feed
-        // Use internal error handling to handle XML errors manually.
-        $oldXmlErrorHandling = libxml_use_internal_errors( true );
-        libxml_clear_errors();
-        $feed = @simplexml_load_file( sprintf( $this->searchUrl, urlencode( $term ) ) );
-        libxml_clear_errors();
-        libxml_use_internal_errors( $oldXmlErrorHandling );
-
-        // Check, that we got some valid data from feed.
-        if ( !$feed || 
-             !count( $feed->entry ) )
-        {
-            throw new iiClientException( 'Could not fetch data.' );
-        }
-
-        $messages = array();
-        $newLast  = $lastMessage;
-        foreach ( $feed->entry as $item )
-        {
-            $date = new DateTime( (string) $item->published );
-            if ( $date->getTimestamp() <= $lastMessage )
-            {
-                continue;
-            }
-
-            // Split up user name
-            if ( preg_match( '(^(?P<nick>\S+)\s+\((?P<user>.*)\)\s*$)s', (string) $item->author->name, $match ) )
-            {
-                if ( array_search( $match['nick'], $friends ) )
-                {
-                    // Do not show messages in searches from friends.
-                    continue;
-                }
-
-                $update = new iiMessage(
-                    $date,
-                    $match['nick'],
-                    $this->unfoldUrls( trim( (string) $item->title ) ),
-                    $match['user']
-                );
-            }
-            else
-            {
-                // No valid entry found
-                continue;
-            }
-
-            $messages[] = $update;
-            $newLast    = max( $newLast, $date->getTimestamp() );
-            break;
-        }
-
-        // Store date of last message received
-        $this->storage->store( $key, $newLast );
-
-        return $messages;
-    }
-
-    /**
-     * Fetch new messages for all search terms
-     * 
-     * @return array
-     */
-    protected function oldfetchSearches()
-    {
-        $messages = array();
-        foreach ( $this->searches as $term )
-        {
-            $messages = array_merge(
-                $messages,
-                $this->fetchSearch( $term )
-            );
-        }
-        return $messages;
     }
 }
 

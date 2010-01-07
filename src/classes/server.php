@@ -122,24 +122,16 @@ class Server
     {
         foreach ( $this->clients as $client )
         {
-            try
-            {
-                $messages = $client['client']->getUpdates();
+            $messages = $client['client']->getUpdates();
 
-                foreach ( $messages as $message )
-                {
-                    $this->ircServer->sendMessage(
-                        $client['user'],
-                        $message->from,
-                        $message->to,
-                        $message->message
-                    );
-                }
-            }
-            catch ( \Exception $e )
+            foreach ( $messages as $message )
             {
-                $this->logger->log( E_WARNING, 'An error occured: ' . $e->getMessage() );
-                $this->ircServer->sendMessage( $client['user'], 'twircd', '&twitter', '[error] ' . $e->getMessage() );
+                $this->ircServer->sendMessage(
+                    $client['user'],
+                    $message->from,
+                    $message->to,
+                    $message->message
+                );
             }
         }
     }
@@ -187,6 +179,7 @@ class Server
         foreach ( $this->configuration->getSearches() as $channel => $search )
         {
             $this->joinChannel( $user, $channel, '', $search );
+            $client->queue( 'getSearchResults', array( $channel ) );
         }
     }
 
