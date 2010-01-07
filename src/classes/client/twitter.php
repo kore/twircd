@@ -275,8 +275,7 @@ class Twitter extends \TwIRCd\Client
         $url = 'http://' . urlencode( $this->user ) . ':' . ( $password = urlencode( $this->password ) ) . '@' . $this->baseUrl . $path;
 
         // Append data to URL for GET requests
-        if ( ( $method === 'GET' ) && 
-             count( $data ) )
+        if ( ( $method === 'GET' ) && count( $data ) )
         {
             $url .= '?' . http_build_query( $data );
         }
@@ -290,8 +289,7 @@ class Twitter extends \TwIRCd\Client
         );
 
         // Append data to body for non-GET requests
-        if ( ( $method !== 'GET' ) && 
-             count( $data ) )
+        if ( ( $method !== 'GET' ) && count( $data ) )
         {
             $options['http']['content'] = http_build_query( $data );
         }
@@ -308,6 +306,39 @@ class Twitter extends \TwIRCd\Client
             throw new \Exception( 'Could not connect to service.' );
         }
 
+        $headers = $this->getHttpHeaders( $fp );
+        $body    = $this->getResponseBody( $fp );
+        fclose( $fp );
+
+        // This check is not correct in terms of general HTTP handling, but 
+        // should sufficient for twitter.
+        if ( ( (int) $headers['status'] ) !== 200 )
+        {
+            throw new \Exception( "Response error recieved from twitter: " . $headers['status'] );
+        }
+
+        $this->updateRateLimit( $headers );
+        $data = json_decode( $body, true );
+        if ( isset( $data['error'] ) )
+        {
+            // On error, exit with error code
+            throw new \Exception( $data['error'] );
+        }
+
+        return $data;
+    }
+
+    /**
+     * Get HTTP headers from resource
+     *
+     * Return an array with the HTTP headers from the given resource. The 
+     * resource should be a fopen()'ed HTTP stream wrapper.
+     * 
+     * @param resource $fp 
+     * @return array
+     */
+    protected function getHttpHeaders( $fp )
+    {
         // Extract response headers
         $metaData   = stream_get_meta_data( $fp );
         // The array content depends on whether PHP is compiled with 
@@ -330,21 +361,25 @@ class Twitter extends \TwIRCd\Client
             }
         }
 
-        $this->updateRateLimit( $headers );
+        return $headers;
+    }
 
+    /**
+     * Get HTTP response body from resource
+     *
+     * Return an array with the HTTP response body from the given resource. The 
+     * resource should be a fopen()'ed HTTP stream wrapper.
+     * 
+     * @param resource $fp 
+     * @return string
+     */
+    protected function getResponseBody( $fp )
+    {
         // Read all the returned stuff
         $data = '';
         while ( !feof( $fp ) )
         {
             $data .= fread( $fp, 1024 );
-        }
-        fclose( $fp );
-        $data = json_decode( $data, true );
-
-        if ( isset( $data['error'] ) )
-        {
-            // On error, exit with error code
-            throw new \Exception( $data['error'] );
         }
 
         return $data;
@@ -366,11 +401,20 @@ class Twitter extends \TwIRCd\Client
      */
     protected function updateRateLimit( array $httpHeaders )
     {
+        if ( !isset( $httpHeaders['x-ratelimit-remaining'] ) )
+        {
+            // Not all responses must contain rate limit information.
+            return;
+        }
+
         $remainingTime     = $httpHeaders['x-ratelimit-reset'] - time();
         $remainingRequests = $httpHeaders['x-ratelimit-remaining'];
         $requestsPerHour   = $httpHeaders['x-ratelimit-limit'];
         $percentTime       = 1 - $remainingTime / 3600;
         $percentRequests   = 1 - $remainingRequests / $requestsPerHour;
+
+        // The additional factor of 1.1 is used to ensure, that we really do 
+        // not touch the rate limit.
         $this->queueFactor = ( $percentTime / $percentRequests ) * 1.1;
 
         $this->logger->log( E_NOTICE, "Set queue factor to {$this->queueFactor}." );
