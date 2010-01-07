@@ -150,7 +150,31 @@ class Xml extends \TwIRCd\Configuration
      */
     public function setSearch( $channel, $search )
     {
-        // @todo: Implement
+        $xpath = new \DOMXPath( $this->document );
+        $nodes = $xpath->query( '/config/searches/search[@channel = "' . htmlspecialchars( $channel ) . '"]' );
+        if ( !$nodes->length )
+        {
+            $container = $xpath->query( '/config/searches' );
+            if ( !$container->length )
+            {
+                $container = $this->document->documentElement->appendChild(
+                    $this->document->createElement( 'searches' )
+                );
+            }
+            else
+            {
+                $container = $container->item( 0 );
+            }
+
+            $container->appendChild(
+                $node = $this->document->createElement( 'search', $search )
+            );
+            $node->setAttribute( 'channel', $channel );
+            return $this->store();
+        }
+
+        $nodes->item( 0 )->nodeValue = $search;
+        return $this->store();
     }
 
     /**
@@ -163,7 +187,14 @@ class Xml extends \TwIRCd\Configuration
      */
     public function removeSearch( $channel )
     {
-        // @todo: Implement
+        $xpath = new \DOMXPath( $this->document );
+        $nodes = $xpath->query( '/config/searches/search[@channel = "' . htmlspecialchars( $channel ) . '"]' );
+        if ( $nodes->length )
+        {
+            $node = $nodes->item( 0 );
+            $node->parentNode->removeChild( $node );
+            return $this->store();
+        }
     }
 
     /**
@@ -176,8 +207,15 @@ class Xml extends \TwIRCd\Configuration
      */
     public function getSearches()
     {
-        // @todo: Implement
-        return array();
+        $searches = array();
+        $xpath = new \DOMXPath( $this->document );
+        $nodes = $xpath->query( '/config/searches/search' );
+        foreach ( $nodes as $node )
+        {
+            $searches[$node->getAttribute( 'channel' )] = $node->nodeValue;
+        }
+
+        return $searches;
     }
 }
 

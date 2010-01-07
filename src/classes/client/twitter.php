@@ -117,6 +117,7 @@ class Twitter extends \TwIRCd\Client
      */
     public function getSearchResults( $channel )
     {
+        $this->logger->log( E_WARNING, "Search not implemented yet." );
         // @todo: Implement
         return array();
     }

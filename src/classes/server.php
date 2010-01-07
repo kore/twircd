@@ -92,6 +92,8 @@ class Server
         $this->ircServer->registerCallback( 'PRIVMSG',  array( $this, 'twitter' ) );
         $this->ircServer->registerCallback( 'PRIVMSG',  array( $this, 'directMessage' ) );
         $this->ircServer->registerCallback( 'JOIN',     array( $this, 'addSearch' ) );
+        $this->ircServer->registerCallback( 'PART',     array( $this, 'removeSearch' ) );
+        $this->ircServer->registerCallback( 'TOPIC',    array( $this, 'updateSearch' ) );
         $this->ircServer->registerCallback( 'WHO',      array( $this, 'listFriends' ) );
         $this->ircServer->registerCallback( 'WHOIS',    array( $this, 'getFriendInfo' ) );
         $this->ircServer->registerCallback( 'cycle',    array( $this, 'check' ) );
@@ -153,7 +155,7 @@ class Server
     {
         if ( isset( $this->clients[$user->nick] ) )
         {
-            $this->logger->log( E_WARNING, 'Ignoring user reregistratio.' );
+            $this->logger->log( E_WARNING, 'Ignoring user reregistration.' );
             return;
         }
 
@@ -166,25 +168,26 @@ class Server
             'client' => $client,
         );
 
-        $friendList = "@twircd @{$user->nick} " . implode( ' ', array_map(
+        // Join default &twitter channel, with all friends listed as users
+        $friendList = "@twircd " . implode( ' ', array_map(
             function ( $friend )
             {
                 return ( $friend->follower ? '+' : '' ) . $friend->name;
             },
             $this->clients[$user->nick]['friends'] = $client->getFriends()
         ) );
+        $this->joinChannel( $user, '&twitter', $friendList, "Your personal TwIRCd main channel | Just write something to tweet." );
 
-        $this->ircServer->send( $user, ":$user JOIN :&twitter" );
-        foreach ( explode( "\n", wordwrap( $friendList, 400 ) ) as $string )
-        {
-            $this->ircServer->sendServerMessage( $user, "353 {$user->nick} = &twitter :$string" );
-        }
-        $this->ircServer->sendServerMessage( $user, "366 {$user->nick} &twitter :End of NAMES list" );
+        // Queue default user updates
         $client->queue( 'getTimeline' );
         $client->queue( 'getMentions' );
         $client->queue( 'getDirectMessages' );
 
-        // @todo: Join channels for configured searches
+        // Join channels for configured searches
+        foreach ( $this->configuration->getSearches() as $channel => $search )
+        {
+            $this->joinChannel( $user, $channel, '', $search );
+        }
     }
 
     /**
@@ -308,8 +311,98 @@ class Server
      */
     public function addSearch( Irc\User $user, Irc\Message $message )
     {
-        // @todo: Update configuration
-        // @todo: Join channel
-        // @todo: Schedule fetching of search results
+        $channel  = $message->params[0];
+        $searches = $this->configuration->getSearches();
+        if ( ( $channel[0] !== '#' ) ||
+             isset( $searches[$channel] ) )
+        {
+            return;
+        }
+
+        $this->configuration->setSearch( $channel, $channel );
+        $this->joinChannel( $user, $channel, '', $channel );
+        $this->clients[$user->nick]['client']->queue( 'getSearchResults', array( $channel ) );
+        $this->logger->log( E_NOTICE, "Added search channel $channel." );
+    }
+
+    /**
+     * A new channel has been parted
+     *
+     * If the users parts a search channel this means, we should remove the 
+     * search from the storage and tell the user about the parted channel.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function removeSearch( Irc\User $user, Irc\Message $message )
+    {
+        $channel  = $message->params[0];
+        $searches = $this->configuration->getSearches();
+        if ( ( $channel[0] !== '#' ) ||
+             !isset( $searches[$channel] ) )
+        {
+            return;
+        }
+
+        $this->configuration->removeSearch( $channel );
+        $this->ircServer->send( $user, ":$user PART $channel :Search removed" );
+        $this->logger->log( E_NOTICE, "Removed search channel $channel." );
+    }
+
+    /**
+     * The topic has been set
+     *
+     * If the topic has been updated for one of the search channels, we need to 
+     * update the search parameters and tell the client about the topic update.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function updateSearch( Irc\User $user, Irc\Message $message )
+    {
+        $channel = $message->params[0];
+        if ( $channel[0] !== '#' )
+        {
+            return;
+        }
+
+        $this->configuration->setSearch( $channel, $message->params[1] );
+        $this->ircServer->send( $user, ":$user TOPIC $channel :{$message->params[1]}" );
+        $this->logger->log( E_NOTICE, "Updated search for channel $channel to: {$message->params[1]}" );
+    }
+
+    /**
+     * Join IRC channel
+     *
+     * Let the user join an IRC channel. Optionally a list of other users may 
+     * be provided, which are also in the channel, and will be reported as 
+     * such.
+     * 
+     * @param Irc\User $user 
+     * @param string $channel 
+     * @param string $users 
+     * @param string $topic 
+     * @return void
+     */
+    protected function joinChannel( Irc\User $user, $channel, $users = '', $topic = '' )
+    {
+        $users = "@{$user->nick} $users";
+        $this->ircServer->send( $user, ":$user JOIN :$channel" );
+        foreach ( explode( "\n", wordwrap( $users, 400 ) ) as $string )
+        {
+            $this->ircServer->sendServerMessage( $user, "353 {$user->nick} = $channel :$string" );
+        }
+        $this->ircServer->sendServerMessage( $user, "366 {$user->nick} $channel :End of NAMES list" );
+
+        if ( empty( $topic ) )
+        {
+            $this->ircServer->sendServerMessage( $user, "331 {$user->nick} $channel :No topic is set" );
+        }
+        else
+        {
+            $this->ircServer->sendServerMessage( $user, "332 {$user->nick} $channel :$topic" );
+        }
     }
 }
