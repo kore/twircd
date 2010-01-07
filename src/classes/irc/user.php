@@ -78,6 +78,27 @@ class User
     public $realName;
 
     /**
+     * Configuration of the user
+     * 
+     * @var \TwIRCd\Configuration
+     */
+    public $configuration;
+
+    /**
+     * Microblogging client this user uses.
+     * 
+     * @var \TwIRCd\Client
+     */
+    public $client;
+
+    /**
+     * Friends of the user, stored as an array of Friend objects.
+     * 
+     * @var array
+     */
+    public $friends;
+
+    /**
      * Create a new user context object from the user connection
      * 
      * @param resource $connection 

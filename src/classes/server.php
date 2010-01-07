@@ -41,7 +41,7 @@ class Server
     protected $logger;
 
     /**
-     * The IRC server, used to serve the clients
+     * The IRC server, used to serve the users
      * 
      * @var \TwIRCd\Irc\Server
      */
@@ -53,14 +53,14 @@ class Server
      * 
      * @var array
      */
-    protected $clients;
+    protected $users;
 
     /**
-     * Configuration storage
+     * User to client mapper and configuration initializer
      * 
-     * @var Configuration
+     * @var \TwIRCd\Mapper
      */
-    protected $configuration;
+    protected $mapper;
 
     /**
      * Construct Twitter IRC server
@@ -71,12 +71,12 @@ class Server
      * @param \TwIRCd\Irc\Server $ircServer 
      * @return void
      */
-    public function __construct( \TwIRCd\Logger $logger, \TwIRCd\Irc\Server $ircServer, \TwIRCd\Configuration $configuration )
+    public function __construct( \TwIRCd\Logger $logger, \TwIRCd\Irc\Server $ircServer, \TwIRCd\Mapper $mapper )
     {
-        $this->logger        = $logger;
-        $this->ircServer     = $ircServer;
-        $this->clients       = array();
-        $this->configuration = $configuration;
+        $this->logger    = $logger;
+        $this->ircServer = $ircServer;
+        $this->mapper    = $mapper;
+        $this->users     = array();
 
         $this->registerCallbacks();
     }
@@ -120,14 +120,14 @@ class Server
      */
     public function check()
     {
-        foreach ( $this->clients as $client )
+        foreach ( $this->users as $user )
         {
-            $messages = $client['client']->getUpdates();
+            $messages = $user->client->getUpdates();
 
             foreach ( $messages as $message )
             {
                 $this->ircServer->sendMessage(
-                    $client['user'],
+                    $user,
                     $message->from,
                     $message->to,
                     $message->message
@@ -145,20 +145,14 @@ class Server
      */
     public function startup( Irc\User $user, Irc\Message $message )
     {
-        if ( isset( $this->clients[$user->nick] ) )
+        if ( isset( $this->users[$user->nick] ) )
         {
             $this->logger->log( E_WARNING, 'Ignoring user reregistration.' );
             return;
         }
 
-        // @todo: This should be configurable somehow, to use other 
-        // microblogging services instead.
-        $client = new Client\Twitter( $this->logger, $this->configuration );
-        $client->setCredentials( $user->nick, $user->password );
-        $this->clients[$user->nick] = array(
-            'user'   => $user,
-            'client' => $client,
-        );
+        $this->mapper->initializeUserAccount( $user );
+        $this->users[$user->nick] = $user;
 
         // Join default &twitter channel, with all friends listed as users
         $friendList = "@twircd " . implode( ' ', array_map(
@@ -166,20 +160,20 @@ class Server
             {
                 return ( $friend->follower ? '+' : '' ) . $friend->name;
             },
-            $this->clients[$user->nick]['friends'] = $client->getFriends()
+            $user->friends = $user->client->getFriends()
         ) );
         $this->joinChannel( $user, '&twitter', $friendList, "Your personal TwIRCd main channel | Just write something to tweet." );
 
         // Queue default user updates
-        $client->queue( 'getTimeline' );
-        $client->queue( 'getMentions' );
-        $client->queue( 'getDirectMessages' );
+        $user->client->queue( 'getTimeline' );
+        $user->client->queue( 'getMentions' );
+        $user->client->queue( 'getDirectMessages' );
 
         // Join channels for configured searches
-        foreach ( $this->configuration->getSearches() as $channel => $search )
+        foreach ( $user->configuration->getSearches() as $channel => $search )
         {
             $this->joinChannel( $user, $channel, '', $search );
-            $client->queue( 'getSearchResults', array( $channel ) );
+            $user->client->queue( 'getSearchResults', array( $channel ) );
         }
     }
 
@@ -201,7 +195,7 @@ class Server
         }
 
         $this->logger->log( E_NOTICE, "Twitter: " . $message->params[1] );
-        $this->clients[$user->nick]['client']->updateStatus( $message->params[1] );
+        $user->client->updateStatus( $message->params[1] );
     }
 
     /**
@@ -217,13 +211,13 @@ class Server
     public function directMessage( Irc\User $user, Irc\Message $message )
     {
         $target = $message->params[0];
-        if ( !isset( $this->clients[$user->nick]['friends'][$target] ) )
+        if ( !isset( $user->friends[$target] ) )
         {
             return;
         }
 
         $this->logger->log( E_NOTICE, "Direct message to $target: " . $message->params[1] );
-        $this->clients[$user->nick]['client']->sendDirectMessage( $target, $message->params[1] );
+        $user->client->sendDirectMessage( $target, $message->params[1] );
     }
 
     /**
@@ -239,17 +233,17 @@ class Server
     {
         // WHO response for the user itself
         $this->ircServer->sendServerMessage(
-            $this->clients[$user->nick]['user'],
+            $user,
             "352 {$user->nick} {$message->params[0]} {$user->ident} {$user->host} twircd {$user->nick} H@ :0 {$user->realName}"
         );
 
         if ( $message->params[0] === '&twitter' )
         {
             // List all friends as away for the &twitter channel
-            foreach ( $this->clients[$user->nick]['friends'] as $friend )
+            foreach ( $user->friends as $friend )
             {
                 $this->ircServer->sendServerMessage( 
-                    $this->clients[$user->nick]['user'],
+                    $user,
                     "352 {$user->nick} &twitter {$friend->name} twitter.com twircd {$friend->name} G :0 {$friend->realName}"
                 );
             }
@@ -257,7 +251,7 @@ class Server
 
         // End of responses
         $this->ircServer->sendServerMessage(
-            $this->clients[$user->nick]['user'],
+            $user,
             "315 {$user->nick} {$message->params[0]} :End of WHO list"
         );
     }
@@ -275,21 +269,21 @@ class Server
     {
         if ( $message->params[0] === $user->nick )
         {
-            $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "311 {$user->nick} {$user->nick} {$user->ident} {$user->host} * :{$user->realName}" );
-            $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "318 {$user->nick} {$user->nick} :End of /WHOIS list." );
+            $this->ircServer->sendServerMessage( $user, "311 {$user->nick} {$user->nick} {$user->ident} {$user->host} * :{$user->realName}" );
+            $this->ircServer->sendServerMessage( $user, "318 {$user->nick} {$user->nick} :End of /WHOIS list." );
             return;
         }
 
-        if ( !isset( $this->clients[$user->nick]['friends'][$message->params[0]] ) )
+        if ( !isset( $user->friends[$message->params[0]] ) )
         {
-            $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "401 {$user->nick} {$message->params[0]} :No such nick/channel" );
+            $this->ircServer->sendServerMessage( $user, "401 {$user->nick} {$message->params[0]} :No such nick/channel" );
             return;
         }
 
-        $friend = $this->clients[$user->nick]['friends'][$message->params[0]];
-        $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "311 {$user->nick} {$friend->name} {$friend->name} twitter.com * :{$friend->realName}" );
-        $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "301 :{$friend->status}" );
-        $this->ircServer->sendServerMessage( $this->clients[$user->nick]['user'], "318 {$user->nick} {$friend->name} :End of /WHOIS list." );
+        $friend = $user->friends[$message->params[0]];
+        $this->ircServer->sendServerMessage( $user, "311 {$user->nick} {$friend->name} {$friend->name} twitter.com * :{$friend->realName}" );
+        $this->ircServer->sendServerMessage( $user, "301 :{$friend->status}" );
+        $this->ircServer->sendServerMessage( $user, "318 {$user->nick} {$friend->name} :End of /WHOIS list." );
     }
 
     /**
@@ -305,16 +299,16 @@ class Server
     public function addSearch( Irc\User $user, Irc\Message $message )
     {
         $channel  = $message->params[0];
-        $searches = $this->configuration->getSearches();
+        $searches = $user->configuration->getSearches();
         if ( ( $channel[0] !== '#' ) ||
              isset( $searches[$channel] ) )
         {
             return;
         }
 
-        $this->configuration->setSearch( $channel, $channel );
+        $user->configuration->setSearch( $channel, $channel );
         $this->joinChannel( $user, $channel, '', $channel );
-        $this->clients[$user->nick]['client']->queue( 'getSearchResults', array( $channel ) );
+        $user->client->queue( 'getSearchResults', array( $channel ) );
         $this->logger->log( E_NOTICE, "Added search channel $channel." );
     }
 
@@ -331,14 +325,14 @@ class Server
     public function removeSearch( Irc\User $user, Irc\Message $message )
     {
         $channel  = $message->params[0];
-        $searches = $this->configuration->getSearches();
+        $searches = $user->configuration->getSearches();
         if ( ( $channel[0] !== '#' ) ||
              !isset( $searches[$channel] ) )
         {
             return;
         }
 
-        $this->configuration->removeSearch( $channel );
+        $user->configuration->removeSearch( $channel );
         $this->ircServer->send( $user, ":$user PART $channel :Search removed" );
         $this->logger->log( E_NOTICE, "Removed search channel $channel." );
     }
@@ -361,7 +355,7 @@ class Server
             return;
         }
 
-        $this->configuration->setSearch( $channel, $message->params[1] );
+        $user->configuration->setSearch( $channel, $message->params[1] );
         $this->ircServer->send( $user, ":$user TOPIC $channel :{$message->params[1]}" );
         $this->logger->log( E_NOTICE, "Updated search for channel $channel to: {$message->params[1]}" );
     }

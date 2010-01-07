@@ -24,34 +24,41 @@
 
 namespace TwIRCd;
 
-const VERSION = '0.0.1';
+/**
+ * Abstract microblogging client base class
+ *
+ * @package Core
+ * @version $Revision$
+ * @license http://www.gnu.org/licenses/gpl-3.0.txt GPL
+ */
+abstract class Mapper
+{
+    /**
+     * Contained logger
+     * 
+     * @var \TwIRCd\Logger
+     */
+    protected $logger;
 
-require 'classes/logger.php';
-require 'classes/logger/stdout.php';
+    /**
+     * Construct mapper from logger
+     * 
+     * @param \TwIRCd\Logger $logger 
+     * @return void
+     */
+    public function __construct( \TwIRCd\Logger $logger )
+    {
+        $this->logger = $logger;
+    }
 
-require 'classes/irc/message.php';
-require 'classes/irc/user.php';
-require 'classes/irc/server.php';
-
-require 'classes/client.php';
-require 'classes/client/friend.php';
-require 'classes/client/message.php';
-require 'classes/client/twitter.php';
-
-require 'classes/configuration.php';
-require 'classes/configuration/xml.php';
-
-require 'classes/mapper.php';
-require 'classes/mapper/ident.php';
-
-require 'classes/server.php';
-
-$logger = new Logger\StdOut();
-
-$twircd = new Server(
-    $logger,
-    new Irc\Server( $logger, '127.0.0.1', 6667 ),
-    new Mapper\Ident( $logger )
-);
-$twircd->run();
+    /**
+     * Initialize user account
+     *
+     * Initializes the microblogging client and the client configuration.
+     * 
+     * @param Irc\User $user 
+     * @return void
+     */
+    abstract public function initializeUserAccount( \TwIRCd\Irc\User $user );
+}
 
