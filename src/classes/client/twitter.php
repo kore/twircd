@@ -113,10 +113,9 @@ class Twitter extends \TwIRCd\Client
      * microblogging service.
      *
      * @param string $channel 
-     * @param string $search 
      * @return array
      */
-    public function getSearchResults( $channel, $search )
+    public function getSearchResults( $channel )
     {
         // @todo: Implement
         return array();
@@ -441,14 +440,14 @@ class Twitter extends \TwIRCd\Client
         $remainingTime     = $httpHeaders['x-ratelimit-reset'] - time();
         $remainingRequests = $httpHeaders['x-ratelimit-remaining'];
         $requestsPerHour   = $httpHeaders['x-ratelimit-limit'];
-        $percentTime       = 1 - $remainingTime / 3600;
-        $percentRequests   = 1 - $remainingRequests / $requestsPerHour;
+        $percentTime       = $remainingTime / 3600;
+        $percentRequests   = $remainingRequests / $requestsPerHour;
 
         // The additional factor of 1.1 is used to ensure, that we really do 
         // not touch the rate limit.
-        $this->queueFactor = ( $percentRequests / $percentTime ) * 1.1;
+        $this->queueFactor = max( 1, ( $percentTime / $percentRequests ) * 1.1 );
 
-        $this->logger->log( E_NOTICE, "Set queue factor to ( $remainingRequests / $requestsPerHour ) / ( $remainingTime / 3600 ) = {$this->queueFactor}." );
+        $this->logger->log( E_NOTICE, "Set queue factor to ( $remainingTime / 3600 ) / ( $remainingRequests / $requestsPerHour ) = ( $percentTime / $percentRequests ) = {$this->queueFactor}." );
     }
 
     /**

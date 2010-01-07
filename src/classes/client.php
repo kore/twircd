@@ -327,10 +327,9 @@ abstract class Client
      * microblogging service.
      *
      * @param string $channel 
-     * @param string $search 
      * @return array
      */
-    abstract public function getSearchResults( $channel, $search );
+    abstract public function getSearchResults( $channel );
 
     /**
      * Update status
