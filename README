@@ -4,7 +4,7 @@ TwIRCd - A Twitter IRC server
 
 TwIRCd proxies Twitter through an IRC server, so that you can read, search and
 update Twitter using your IRC client. It is written for PHP 5.3 using an
-extensible architecture and does not require anything but the PHP socker
+extensible architecture and does not require anything but the PHP socket
 extension.
 
 Usage
