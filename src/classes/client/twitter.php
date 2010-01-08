@@ -222,18 +222,18 @@ class Twitter extends \TwIRCd\Client
     protected function shortenMessage( $string, $length = 140 )
     {
         // Try to shorten all included URLs, if message is too long otherwise
-        if ( strlen( $string ) > 140 )
+        if ( iconv_strlen( $string, 'UTF-8' ) > 140 )
         {
             $string = $this->shortenUrls( $string );
         }
 
         // Skip messages, which aree too long for twitter, and inform the user
-        if ( strlen( $string ) > 140 )
+        if ( iconv_strlen( $string, 'UTF-8' ) > 140 )
         {
-            throw new \Exception(
+            throw new \TwIRCd\LengthException(
                 sprintf( "Skipping too long message (%d characters), overlapping part: '%s'\n",
-                    strlen( $string ),
-                    substr( trim( $string ), 140 )
+                    iconv_strlen( $string, 'UTF-8' ),
+                    iconv_substr( trim( $string ), 140, 100, 'UTF-8' )
                 )
             );
         }
@@ -375,7 +375,7 @@ class Twitter extends \TwIRCd\Client
 
         if ( $fp === false )
         {
-            throw new \Exception( 'Could not connect to service.' );
+            throw new \TwIRCd\ConnectionException( 'Could not connect to service.' );
         }
 
         $headers = $this->getHttpHeaders( $fp );
@@ -386,7 +386,7 @@ class Twitter extends \TwIRCd\Client
         // should sufficient for twitter.
         if ( ( (int) $headers['status'] ) !== 200 )
         {
-            throw new \Exception( "Response error recieved from twitter: " . $headers['status'] );
+            throw new \TwIRCd\ConnectionException( "Response error recieved from twitter: " . $headers['status'] );
         }
 
         $this->updateRateLimit( $headers );
@@ -394,7 +394,7 @@ class Twitter extends \TwIRCd\Client
         if ( isset( $data['error'] ) )
         {
             // On error, exit with error code
-            throw new \Exception( $data['error'] );
+            throw new \TwIRCd\ConnectionException( $data['error'] );
         }
 
         return $data;

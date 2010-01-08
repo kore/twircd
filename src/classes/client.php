@@ -264,12 +264,17 @@ abstract class Client
                         $entry['parameters']
                     );
                 }
-                catch ( \Exception $e )
+                catch ( ConnectionException $e )
                 {
                     // Ignore these errors, they most likely mean connection 
                     // failures, which are just too common with twitter, to 
                     // report them to the user.
-                    $this->logger->log( E_ERROR, $e->getMessage() );
+                    $this->logger->log( E_NOTICE, 'Connection failure: ' . $e->getMessage() );
+                }
+                catch ( \Exception $e )
+                {
+                    // Log all other errors
+                    $this->logger->log( E_ERROR, 'An error occured: ' . $e->getMessage() );
                 }
 
                 $entry['scheduled'] = $current + $this->queueFactor * $this->updateTimes[$entry['type']];

@@ -123,7 +123,7 @@ class User
                 return $this->$property;
 
             default:
-                throw new InvalidArgumentException( $property );
+                throw new \InvalidArgumentException( $property );
         }
     }
 

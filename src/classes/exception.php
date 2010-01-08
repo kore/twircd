@@ -24,35 +24,42 @@
 
 namespace TwIRCd;
 
-const VERSION = '0.0.1';
+/**
+ * TwIRCd Exception
+ * 
+ * @package Core
+ * @version $Revision$
+ * @license http://www.gnu.org/licenses/gpl-3.0.txt GPL
+ */
+abstract class Exception extends \Exception
+{
+}
 
-require 'classes/logger.php';
-require 'classes/logger/stdout.php';
+/**
+ * Connection exception.
+ *
+ * Thrown when the connection to an external service (most likely thhe 
+ * microblogging service providers) could not be established.
+ * 
+ * @package Core
+ * @version $Revision$
+ * @license http://www.gnu.org/licenses/gpl-3.0.txt GPL
+ */
+class ConnectionException extends Exception
+{
+}
 
-require 'classes/irc/message.php';
-require 'classes/irc/user.php';
-require 'classes/irc/server.php';
-
-require 'classes/client.php';
-require 'classes/client/friend.php';
-require 'classes/client/message.php';
-require 'classes/client/twitter.php';
-
-require 'classes/configuration.php';
-require 'classes/configuration/xml.php';
-
-require 'classes/mapper.php';
-require 'classes/mapper/ident.php';
-
-require 'classes/exception.php';
-require 'classes/server.php';
-
-$logger = new Logger\StdOut();
-
-$twircd = new Server(
-    $logger,
-    new Irc\Server( $logger, '127.0.0.1', 6667 ),
-    new Mapper\Ident( $logger )
-);
-$twircd->run();
+/**
+ * Length exception.
+ *
+ * Thrown when the message length exceeds the message length which is allowed 
+ * by the microblogging service.
+ * 
+ * @package Core
+ * @version $Revision$
+ * @license http://www.gnu.org/licenses/gpl-3.0.txt GPL
+ */
+class LengthException extends Exception
+{
+}
 

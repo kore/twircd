@@ -194,8 +194,15 @@ class Server
             return;
         }
 
-        $this->logger->log( E_NOTICE, "Twitter: " . $message->params[1] );
-        $user->client->updateStatus( $message->params[1] );
+        try
+        {
+            $this->logger->log( E_NOTICE, "Twitter: " . $message->params[1] );
+            $user->client->updateStatus( $message->params[1] );
+        }
+        catch ( LengthException $e )
+        {
+            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', $e->getMessage() );
+        }
     }
 
     /**
@@ -216,8 +223,15 @@ class Server
             return;
         }
 
-        $this->logger->log( E_NOTICE, "Direct message to $target: " . $message->params[1] );
-        $user->client->sendDirectMessage( $target, $message->params[1] );
+        try
+        {
+            $this->logger->log( E_NOTICE, "Direct message to $target: " . $message->params[1] );
+            $user->client->sendDirectMessage( $target, $message->params[1] );
+        }
+        catch ( LengthException $e )
+        {
+            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', $e->getMessage() );
+        }
     }
 
     /**
