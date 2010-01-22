@@ -418,8 +418,10 @@ class Twitter extends \TwIRCd\Client
             throw new \TwIRCd\ConnectionException( 'Could not connect to service.' );
         }
 
-        $headers = $this->getHttpHeaders( $fp );
+        // We need to fetch the body first, otherwise the headers are not 
+        // available, when using --with-curl-wrappers
         $body    = $this->getResponseBody( $fp );
+        $headers = $this->getHttpHeaders( $fp );
         fclose( $fp );
 
         // This check is not correct in terms of general HTTP handling, but 
