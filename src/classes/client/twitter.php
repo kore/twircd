@@ -274,6 +274,46 @@ class Twitter extends \TwIRCd\Client
     }
 
     /**
+     * Follow a user
+     *
+     * Send a follower request to the given user.
+     * 
+     * @param string $user
+     * @return array
+     */
+    public function followUser( $user )
+    {
+        $this->logger->log( E_NOTICE, "Try to add user {$user} to friend list." );
+        $this->httpRequest(
+            'POST',
+            '/friendships/create.json',
+            array(
+                'screen_name' => $user,
+            )
+        );
+    }
+
+    /**
+     * Unfollow a user
+     *
+     * Unfollow the given user / remove it from the friends list.
+     * 
+     * @param string $user
+     * @return array
+     */
+    public function unfollowUser( $user )
+    {
+        $this->logger->log( E_NOTICE, "Unfollow user {$user}." );
+        $this->httpRequest(
+            'POST',
+            '/friendships/destroy.json',
+            array(
+                'screen_name' => $user,
+            )
+        );
+    }
+
+    /**
      * Receive a set of messages from service
      *
      * Receives a set of messages of the specified type (required for the 

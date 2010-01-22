@@ -96,6 +96,8 @@ class Server
         $this->ircServer->registerCallback( 'TOPIC',    array( $this, 'updateSearch' ) );
         $this->ircServer->registerCallback( 'WHO',      array( $this, 'listFriends' ) );
         $this->ircServer->registerCallback( 'WHOIS',    array( $this, 'getFriendInfo' ) );
+        $this->ircServer->registerCallback( 'INVITE',   array( $this, 'followUser' ) );
+        $this->ircServer->registerCallback( 'KICK',     array( $this, 'unfollowUser' ) );
         $this->ircServer->registerCallback( 'cycle',    array( $this, 'check' ) );
     }
 
@@ -380,6 +382,46 @@ class Server
         $user->configuration->setSearch( $channel, $message->params[1] );
         $this->ircServer->send( $user, ":$user TOPIC $channel :{$message->params[1]}" );
         $this->logger->log( E_NOTICE, "Updated search for channel $channel to: {$message->params[1]}" );
+    }
+
+    /**
+     * Somebody has been invited
+     *
+     * If an invite has been sent in the &twitter channel, this means a 
+     * following request issued by the user.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function followUser( Irc\User $user, Irc\Message $message )
+    {
+        if ( $message->params[1] !== '&twitter' )
+        {
+            return;
+        }
+
+        $user->client->followUser( $message->params[0] );
+    }
+
+    /**
+     * Somebody has been kicked
+     *
+     * If an kick has been sent in the &twitter channel, this means an
+     * unfollowing request issued by the user.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function unfollowUser( Irc\User $user, Irc\Message $message )
+    {
+        if ( $message->params[0] !== '&twitter' )
+        {
+            return;
+        }
+
+        $user->client->unfollowUser( $message->params[1] );
     }
 
     /**

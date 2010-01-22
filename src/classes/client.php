@@ -381,5 +381,25 @@ abstract class Client
      * @return array
      */
     abstract public function getFriends();
+
+    /**
+     * Follow a user
+     *
+     * Send a follower request to the given user.
+     * 
+     * @param string $user
+     * @return array
+     */
+    abstract public function followUser( $user );
+
+    /**
+     * Unfollow a user
+     *
+     * Unfollow the given user / remove it from the friends list.
+     * 
+     * @param string $user
+     * @return array
+     */
+    abstract public function unfollowUser( $user );
 }
 
