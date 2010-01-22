@@ -199,6 +199,10 @@ class Server
             $this->logger->log( E_NOTICE, "Twitter: " . $message->params[1] );
             $user->client->updateStatus( $message->params[1] );
         }
+        catch ( ConnectionException $e )
+        {
+            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Could not send update: ' . $e->getMessage() );
+        }
         catch ( LengthException $e )
         {
             $this->ircServer->sendMessage( $user, 'twircd', '&twitter', $e->getMessage() );
@@ -227,6 +231,10 @@ class Server
         {
             $this->logger->log( E_NOTICE, "Direct message to $target: " . $message->params[1] );
             $user->client->sendDirectMessage( $target, $message->params[1] );
+        }
+        catch ( ConnectionException $e )
+        {
+            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Could not send direct message: ' . $e->getMessage() );
         }
         catch ( LengthException $e )
         {
