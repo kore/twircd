@@ -19,12 +19,31 @@ Log level, like this::
     $logger = new Logger\StdOut( E_WARNING | E_ERROR );
 
 Now you can connect using any IRC client (or through a proxy like BIP__) to the
-IRC server using your twitter credentials.
+IRC server using your twitter credentials, like:
+
+Nick
+    Your twitter user name; You won't be able to change your nick after
+    connecting.
+Ident / User
+    The microblogging client to use; Defaults to the only working on, for now:
+    twitter.
+Server password
+    Your twitter password
 
 You will automatically join a channel called "&twitter" where all your friends
 should be listed as channel members. Your home timeline (the new friends
 timeline) will be posted into that channel. Everything you write into this
 channel will be posted back to twitter.
+
+Manage friends
+--------------
+
+You can invite and kick users into / from the "&twitter" channel, to maintain
+your friendlist. ``/invite <user>`` will send a friend request to the twitter
+user specified by its its screen name. ``/kick <user`` will unfollow the user.
+
+Most IRC GUI clients do have a GUI for kicking users, which you of course may
+also use for this.
 
 Direct messages
 ---------------
@@ -41,6 +60,17 @@ search phrase update the topic of the channel. The following command will
 change the search to "#php OR #phpug", for example::
 
     /TOPIC #php OR #phpug
+
+Groups
+------
+
+You can join additional channels to create sub-groups of your friends. Just
+join a "local" channel, starting with an ampersand, like "&work", which will
+create a new group. You now may invite some of your friends, and their messages
+will be posted into the group channel and the timeline in "&twitter". The
+command used to invite users is ``/invite <user>`` where ``<user>`` is the
+twitter screen name. You can also kick users from the channel to remove them
+from the group.
 
 Rate limit
 ----------
