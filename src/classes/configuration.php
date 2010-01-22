@@ -85,5 +85,37 @@ abstract class Configuration
      * @return array
      */
     abstract public function getSearches();
+
+    /**
+     * Set group term
+     *
+     * Set the group term for an existing group, or create a new group entry 
+     * with the defined name and group term.
+     * 
+     * @param string $group 
+     * @param array $users
+     * @return void
+     */
+    abstract public function setGroup( $group, array $users = array() );
+
+    /**
+     * Remove group
+     *
+     * Remove the given group from the lsit of defined groups.
+     * 
+     * @param string $group 
+     * @return void
+     */
+    abstract public function removeGroup( $group );
+
+    /**
+     * Get all groups
+     *
+     * Get an array with all groups, where the key is the channel the group 
+     * has been defined for, and the value is the group term.
+     * 
+     * @return array
+     */
+    abstract public function getGroups();
 }
 

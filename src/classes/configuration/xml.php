@@ -91,7 +91,7 @@ class Xml extends \TwIRCd\Configuration
     public function getLastUpdate( $type )
     {
         $xpath = new \DOMXPath( $this->document );
-        $updateTime = $xpath->query( '/config/updates/update[@type = "' . htmlspecialchars( $type ) . '"]' );
+        $updateTime = $xpath->query( '/config/updates/update[@type = "' . $type . '"]' );
         if ( !$updateTime->length )
         {
             return null;
@@ -112,7 +112,7 @@ class Xml extends \TwIRCd\Configuration
     public function setLastUpdate( $type, $value )
     {
         $xpath = new \DOMXPath( $this->document );
-        $updateTime = $xpath->query( '/config/updates/update[@type = "' . htmlspecialchars( $type ) . '"]' );
+        $updateTime = $xpath->query( '/config/updates/update[@type = "' . $type . '"]' );
         if ( !$updateTime->length )
         {
             $container = $xpath->query( '/config/updates' );
@@ -151,7 +151,7 @@ class Xml extends \TwIRCd\Configuration
     public function setSearch( $channel, $search )
     {
         $xpath = new \DOMXPath( $this->document );
-        $nodes = $xpath->query( '/config/searches/search[@channel = "' . htmlspecialchars( $channel ) . '"]' );
+        $nodes = $xpath->query( '/config/searches/search[@channel = "' . $channel . '"]' );
         if ( !$nodes->length )
         {
             $container = $xpath->query( '/config/searches' );
@@ -188,7 +188,7 @@ class Xml extends \TwIRCd\Configuration
     public function removeSearch( $channel )
     {
         $xpath = new \DOMXPath( $this->document );
-        $nodes = $xpath->query( '/config/searches/search[@channel = "' . htmlspecialchars( $channel ) . '"]' );
+        $nodes = $xpath->query( '/config/searches/search[@channel = "' . $channel . '"]' );
         if ( $nodes->length )
         {
             $node = $nodes->item( 0 );
@@ -216,6 +216,86 @@ class Xml extends \TwIRCd\Configuration
         }
 
         return $searches;
+    }
+
+    /**
+     * Set group term
+     *
+     * Set the group term for an existing group, or create a new group entry 
+     * with the defined name and group term.
+     * 
+     * @param string $group 
+     * @param array $users
+     * @return void
+     */
+    public function setGroup( $group, array $users = array() )
+    {
+        $xpath = new \DOMXPath( $this->document );
+        $nodes = $xpath->query( '/config/groups/group[@name = "' . $group . '"]' );
+        if ( !$nodes->length )
+        {
+            $container = $xpath->query( '/config/groups' );
+            if ( !$container->length )
+            {
+                $container = $this->document->documentElement->appendChild(
+                    $this->document->createElement( 'groups' )
+                );
+            }
+            else
+            {
+                $container = $container->item( 0 );
+            }
+
+            $container->appendChild(
+                $node = $this->document->createElement( 'group', htmlspecialchars( implode( ',', $users ) ) )
+            );
+            $node->setAttribute( 'name', $group );
+            return $this->store();
+        }
+
+        $nodes->item( 0 )->nodeValue = implode( ',', $users );
+        return $this->store();
+    }
+
+    /**
+     * Remove group
+     *
+     * Remove the given group from the lsit of defined groups.
+     * 
+     * @param string $group 
+     * @return void
+     */
+    public function removeGroup( $group )
+    {
+        $xpath = new \DOMXPath( $this->document );
+        $nodes = $xpath->query( '/config/groups/group[@name = "' . $group . '"]' );
+        if ( $nodes->length )
+        {
+            $node = $nodes->item( 0 );
+            $node->parentNode->removeChild( $node );
+            return $this->store();
+        }
+    }
+
+    /**
+     * Get all groups
+     *
+     * Get an array with all groups, where the key is the channel the group 
+     * has been defined for, and the value is the group term.
+     * 
+     * @return array
+     */
+    public function getGroups()
+    {
+        $groups = array();
+        $xpath = new \DOMXPath( $this->document );
+        $nodes = $xpath->query( '/config/groups/group' );
+        foreach ( $nodes as $node )
+        {
+            $groups[$node->getAttribute( 'name' )] = explode( ',', $node->nodeValue );
+        }
+
+        return $groups;
     }
 }
 
