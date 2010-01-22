@@ -99,12 +99,16 @@ class Server
         $this->ircServer->registerCallback( 'PRIVMSG',  array( $this, 'twitter' ) );
         $this->ircServer->registerCallback( 'PRIVMSG',  array( $this, 'directMessage' ) );
         $this->ircServer->registerCallback( 'JOIN',     array( $this, 'addSearch' ) );
+        $this->ircServer->registerCallback( 'JOIN',     array( $this, 'addGroup' ) );
         $this->ircServer->registerCallback( 'PART',     array( $this, 'removeSearch' ) );
+        $this->ircServer->registerCallback( 'PART',     array( $this, 'removeGroup' ) );
         $this->ircServer->registerCallback( 'TOPIC',    array( $this, 'updateSearch' ) );
         $this->ircServer->registerCallback( 'WHO',      array( $this, 'listFriends' ) );
         $this->ircServer->registerCallback( 'WHOIS',    array( $this, 'getFriendInfo' ) );
         $this->ircServer->registerCallback( 'INVITE',   array( $this, 'followUser' ) );
+        $this->ircServer->registerCallback( 'INVITE',   array( $this, 'inviteToGroup' ) );
         $this->ircServer->registerCallback( 'KICK',     array( $this, 'unfollowUser' ) );
+        $this->ircServer->registerCallback( 'KICK',     array( $this, 'removeFromGroup' ) );
         $this->ircServer->registerCallback( 'cycle',    array( $this, 'check' ) );
     }
 
@@ -141,6 +145,29 @@ class Server
                     $message->to,
                     $message->message
                 );
+
+                // Check if message should additionally be proxied into a group 
+                // channel.
+                //
+                // @TODO: Refactor this.
+                if ( $message->to === '&twitter' )
+                {
+                    foreach ( $user->configuration->getGroups() as $channel => $friends )
+                    {
+                        foreach ( $friends as $friend )
+                        {
+                            if ( preg_match( '(^' . preg_quote( $friend ) . '!)', $message->from ) )
+                            {
+                                $this->ircServer->sendMessage(
+                                    $user,
+                                    $message->from,
+                                    $channel,
+                                    $message->message
+                                );
+                            }
+                        }
+                    }
+                }
             }
 
             $this->checkFriendListUpdate( $user );
@@ -179,7 +206,7 @@ class Server
         foreach ( $unfollowed as $friend )
         {
             $this->logger->log( E_NOTICE, "You are not following $friend any more." );
-            $this->ircServer->send( $user, ":$friend!$friend@twitter.com PART :&twitter" );
+            $this->ircServer->send( $user, ":$friend!$friend@twitter.com PART &twitter :Unfollowed" );
         }
 
         // Update stored friend list
@@ -226,6 +253,12 @@ class Server
         {
             $this->joinChannel( $user, $channel, '', $search );
             $user->client->queue( 'getSearchResults', array( $channel ) );
+        }
+
+        // Join channels for configured groups
+        foreach ( $user->configuration->getGroups() as $channel => $users )
+        {
+            $this->joinChannel( $user, $channel, implode( ' ', $users ), "Group $channel" );
         }
     }
 
@@ -432,6 +465,114 @@ class Server
         $user->configuration->setSearch( $channel, $message->params[1] );
         $this->ircServer->send( $user, ":$user TOPIC $channel :{$message->params[1]}" );
         $this->logger->log( E_NOTICE, "Updated search for channel $channel to: {$message->params[1]}" );
+    }
+
+    /**
+     * A new channel has been joined
+     *
+     * The user can join new channels, to configure groups for each of those 
+     * channels. A new channel means adding an empty group.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function addGroup( Irc\User $user, Irc\Message $message )
+    {
+        $channel = $message->params[0];
+        $groups  = $user->configuration->getGroups();
+        if ( ( $channel[0] !== '&' ) ||
+             ( $channel === '&twitter' ) ||
+             isset( $groups[$channel] ) )
+        {
+            return;
+        }
+
+        $user->configuration->setGroup( $channel );
+        $this->joinChannel( $user, $channel, '', "Group $channel" );
+        $this->logger->log( E_NOTICE, "Added group channel $channel." );
+    }
+
+    /**
+     * A new channel has been parted
+     *
+     * If the users parts a group channel this means, we should remove the 
+     * group from the storage and tell the user about the parted channel.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function removeGroup( Irc\User $user, Irc\Message $message )
+    {
+        $channel = $message->params[0];
+        $groups  = $user->configuration->getGroups();
+        if ( ( $channel[0] !== '&' ) ||
+             ( $channel === '&twitter' ) ||
+             !isset( $groups[$channel] ) )
+        {
+            return;
+        }
+
+        $user->configuration->removeGroup( $channel );
+        $this->ircServer->send( $user, ":$user PART $channel :Group removed" );
+        $this->logger->log( E_NOTICE, "Removed group channel $channel." );
+    }
+
+    /**
+     * Somebody has been invited
+     *
+     * If an invite has been sent in the &twitter channel, this means a 
+     * following request issued by the user.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function inviteToGroup( Irc\User $user, Irc\Message $message )
+    {
+        $groups  = $user->configuration->getGroups();
+        $channel = $message->params[1];
+        if ( ( $channel === '&twitter' ) ||
+             !isset( $groups[$channel] ) )
+        {
+            return;
+        }
+
+        $groups[$channel][] = $friend = $message->params[0];
+        $groups[$channel] = array_unique( $groups[$channel] );
+        $user->configuration->setGroup( $channel, $groups[$channel] );
+        $this->logger->log( E_NOTICE, "Added $friend to group $channel." );
+        $this->ircServer->send( $user, ":$friend!$friend@twitter.com JOIN :$channel" );
+    }
+
+    /**
+     * Somebody has been kicked
+     *
+     * If an kick has been sent in the &twitter channel, this means an
+     * unfollowing request issued by the user.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function removeFromGroup( Irc\User $user, Irc\Message $message )
+    {
+        $groups  = $user->configuration->getGroups();
+        $channel = $message->params[0];
+        if ( ( $channel === '&twitter' ) ||
+             !isset( $groups[$channel] ) )
+        {
+            return;
+        }
+
+        if ( ( $key = array_search( $friend = $message->params[1], $groups[$channel] ) ) !== false )
+        {
+            unset( $groups[$channel][$key] );
+            $user->configuration->setGroup( $channel, $groups[$channel] );
+            $this->logger->log( E_NOTICE, "Removed $friend from group $channel." );
+            $this->ircServer->send( $user, ":$friend!$friend@twitter.com PART $channel :Removed" );
+        }
     }
 
     /**
