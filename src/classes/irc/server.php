@@ -186,7 +186,14 @@ class Server
             // Execute cycle callback
             foreach ( $this->callbacks['cycle'] as $callback )
             {
-                call_user_func( $callback );
+                try
+                {
+                    call_user_func( $callback );
+                }
+                catch ( \Exception $e )
+                {
+                    $this->logger->log( E_ERROR, "An error occured handling the callback $callback: $e" );
+                }
             }
     
         } while ( $socket );
