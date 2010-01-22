@@ -484,7 +484,7 @@ class Server
         }
         catch ( ConnectionException $e )
         {
-            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Could not follow user: ' . $e->getMessage() );
+            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Could not unfollow user: ' . $e->getMessage() );
         }
     }
 
