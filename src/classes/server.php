@@ -394,6 +394,60 @@ class Server
     }
 
     /**
+     * Somebody has been invited
+     *
+     * If an invite has been sent in the &twitter channel, this means a 
+     * following request issued by the user.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function followUser( Irc\User $user, Irc\Message $message )
+    {
+        if ( $message->params[1] !== '&twitter' )
+        {
+            return;
+        }
+
+        try
+        {
+            $user->client->followUser( $message->params[0] );
+        }
+        catch ( ConnectionException $e )
+        {
+            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Could not follow user: ' . $e->getMessage() );
+        }
+    }
+
+    /**
+     * Somebody has been kicked
+     *
+     * If an kick has been sent in the &twitter channel, this means an
+     * unfollowing request issued by the user.
+     * 
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function unfollowUser( Irc\User $user, Irc\Message $message )
+    {
+        if ( $message->params[0] !== '&twitter' )
+        {
+            return;
+        }
+
+        try
+        {
+            $user->client->unfollowUser( $message->params[1] );
+        }
+        catch ( ConnectionException $e )
+        {
+            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Could not unfollow user: ' . $e->getMessage() );
+        }
+    }
+
+    /**
      * A new channel has been joined
      *
      * The user can join new channels, to configure searches for each of those 
@@ -572,60 +626,6 @@ class Server
             $user->configuration->setGroup( $channel, $groups[$channel] );
             $this->logger->log( E_NOTICE, "Removed $friend from group $channel." );
             $this->ircServer->send( $user, ":$friend!$friend@twitter.com PART $channel :Removed" );
-        }
-    }
-
-    /**
-     * Somebody has been invited
-     *
-     * If an invite has been sent in the &twitter channel, this means a 
-     * following request issued by the user.
-     * 
-     * @param Irc\User $user 
-     * @param Irc\Message $message 
-     * @return void
-     */
-    public function followUser( Irc\User $user, Irc\Message $message )
-    {
-        if ( $message->params[1] !== '&twitter' )
-        {
-            return;
-        }
-
-        try
-        {
-            $user->client->followUser( $message->params[0] );
-        }
-        catch ( ConnectionException $e )
-        {
-            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Could not follow user: ' . $e->getMessage() );
-        }
-    }
-
-    /**
-     * Somebody has been kicked
-     *
-     * If an kick has been sent in the &twitter channel, this means an
-     * unfollowing request issued by the user.
-     * 
-     * @param Irc\User $user 
-     * @param Irc\Message $message 
-     * @return void
-     */
-    public function unfollowUser( Irc\User $user, Irc\Message $message )
-    {
-        if ( $message->params[0] !== '&twitter' )
-        {
-            return;
-        }
-
-        try
-        {
-            $user->client->unfollowUser( $message->params[1] );
-        }
-        catch ( ConnectionException $e )
-        {
-            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Could not unfollow user: ' . $e->getMessage() );
         }
     }
 
