@@ -110,7 +110,9 @@ class Message
             }
                    
             $message->command = strtoupper( $match['command'] );
-            $message->params  = preg_split( '(\\s+)', trim( $match['params'] ) );
+
+            $match['params'] = trim( $match['params'] );
+            $message->params = empty( $match['params'] ) ? array() : preg_split( '(\\s+)', $match['params'] );
 
             // The "text" should be considered as just another parameter
             if ( isset( $match['text'] ) )
