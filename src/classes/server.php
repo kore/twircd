@@ -63,6 +63,13 @@ class Server
     protected $mapper;
 
     /**
+     * Timestamp of last friend list update
+     * 
+     * @var int
+     */
+    protected $lastFriendListUpdate;
+
+    /**
      * Construct Twitter IRC server
      *
      * Provide a logger and an IRC server implementation.
@@ -135,7 +142,49 @@ class Server
                     $message->message
                 );
             }
+
+            $this->checkFriendListUpdate( $user );
         }
+    }
+
+    /**
+     * Check for an updated friend list
+     * 
+     * @param Irc\User $user 
+     * @return void
+     */
+    protected function checkFriendListUpdate( Irc\User $user )
+    {
+        if ( ( $this->lastFriendListUpdate + 600 ) > time() )
+        {
+            // Only update friend list every ten minutes
+            return;
+        }
+
+        $this->logger->log( E_NOTICE, 'Check for friend list updates.' );
+        $friends      = $user->client->getFriends();
+        $intersection = array_intersect( array_keys( $friends ), array_keys( $user->friends ) );
+               
+        $followed     = array_diff( array_keys( $friends ), $intersection );
+        $unfollowed   = array_diff( array_keys( $user->friends ), $intersection );
+
+        // Let users join, which are now followed by the user
+        foreach ( $followed as $friend )
+        {
+            $this->logger->log( E_NOTICE, "You are no following $friend." );
+            $this->ircServer->send( $user, ":$friend!$friend@twitter.com JOIN :&twitter" );
+        }
+
+        // Let users part, which the user does not follow anymore
+        foreach ( $unfollowed as $friend )
+        {
+            $this->logger->log( E_NOTICE, "You are not following $friend any more." );
+            $this->ircServer->send( $user, ":$friend!$friend@twitter.com PART :&twitter" );
+        }
+
+        // Update stored friend list
+        $user->friends = $friends;
+        $this->lastFriendListUpdate = time();
     }
 
     /**
@@ -164,6 +213,7 @@ class Server
             },
             $user->friends = $user->client->getFriends()
         ) );
+        $this->lastFriendListUpdate = time();
         $this->joinChannel( $user, '&twitter', $friendList, "Your personal TwIRCd main channel | Just write something to tweet." );
 
         // Queue default user updates
@@ -401,7 +451,14 @@ class Server
             return;
         }
 
-        $user->client->followUser( $message->params[0] );
+        try
+        {
+            $user->client->followUser( $message->params[0] );
+        }
+        catch ( ConnectionException $e )
+        {
+            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Could not follow user: ' . $e->getMessage() );
+        }
     }
 
     /**
@@ -421,7 +478,14 @@ class Server
             return;
         }
 
-        $user->client->unfollowUser( $message->params[1] );
+        try
+        {
+            $user->client->unfollowUser( $message->params[1] );
+        }
+        catch ( ConnectionException $e )
+        {
+            $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Could not follow user: ' . $e->getMessage() );
+        }
     }
 
     /**
