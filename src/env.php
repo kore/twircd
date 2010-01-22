@@ -22,17 +22,24 @@
  * @license http://www.gnu.org/licenses/gpl-3.0.txt GPL
  */
 
-namespace TwIRCd;
-require __DIR__ . '/env.php';
+require __DIR__ . '/classes/logger.php';
+require __DIR__ . '/classes/logger/stdout.php';
 
-const VERSION = '0.0.1';
+require __DIR__ . '/classes/irc/message.php';
+require __DIR__ . '/classes/irc/user.php';
+require __DIR__ . '/classes/irc/server.php';
 
-$logger = new Logger\StdOut();
+require __DIR__ . '/classes/client.php';
+require __DIR__ . '/classes/client/friend.php';
+require __DIR__ . '/classes/client/message.php';
+require __DIR__ . '/classes/client/twitter.php';
 
-$twircd = new Server(
-    $logger,
-    new Irc\Server( $logger, '127.0.0.1', 6667 ),
-    new Mapper\Ident( $logger )
-);
-$twircd->run();
+require __DIR__ . '/classes/configuration.php';
+require __DIR__ . '/classes/configuration/xml.php';
+
+require __DIR__ . '/classes/mapper.php';
+require __DIR__ . '/classes/mapper/ident.php';
+
+require __DIR__ . '/classes/exception.php';
+require __DIR__ . '/classes/server.php';
 
