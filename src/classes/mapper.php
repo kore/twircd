@@ -25,7 +25,10 @@
 namespace TwIRCd;
 
 /**
- * Abstract microblogging client base class
+ * Mapper class
+ *
+ * Creates configuration and microblogging clients based on provided user 
+ * information or other environmental information.
  *
  * @package Core
  * @version $Revision$

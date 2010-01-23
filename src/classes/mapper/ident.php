@@ -25,7 +25,16 @@
 namespace TwIRCd\Mapper;
 
 /**
- * Abstract microblogging client base class
+ * Ident mapper
+ *
+ * Creates configuration and microblogging clients based on provided user 
+ * information or other environmental information.
+ *
+ * Instantiates the microblogging client based on the ident, the user provides. 
+ * Defaults to a twitter client, if neither "twitter" or "identica" is 
+ * specified.
+ *
+ * Always creates a XML configuration, which is stored in the CWD.
  *
  * @package Core
  * @version $Revision$
