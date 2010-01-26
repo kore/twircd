@@ -251,24 +251,30 @@ class Twitter extends \TwIRCd\Client
     public function getFriends()
     {
         $this->logger->log( E_NOTICE, "Retrive friend list for user {$this->user}." );
-        $json = $this->httpRequest( 'GET', '/statuses/friends.json' );
 
+        $cursor = "-1";
         $friends = array();
-        foreach( $json as $entry )
-        {
-            $friends[$entry['screen_name']] = $friend = new Friend( $entry['screen_name'] );
+        do {
+            $json = $this->httpRequest( 'GET', '/statuses/friends.json', array( 'cursor' => $cursor ) );
 
-            if ( isset( $entry['status'] ) &&
-                 isset( $entry['status']['text'] ) )
+            foreach( $json['users'] as $entry )
             {
-                $friend->status = $entry['status']['text'];
+                $friends[$entry['screen_name']] = $friend = new Friend( $entry['screen_name'] );
+
+                if ( isset( $entry['status'] ) &&
+                     isset( $entry['status']['text'] ) )
+                {
+                    $friend->status = $entry['status']['text'];
+                }
+
+                if ( isset( $entry['name'] ) )
+                {
+                    $friend->realName = $entry['name'];
+                }
             }
 
-            if ( isset( $entry['name'] ) )
-            {
-                $friend->realName = $entry['name'];
-            }
-        }
+            $cursor = isset( $json['next_cursor'] ) ? $json['next_cursor'] : false;
+        } while ( $cursor );
 
         return $friends;
     }
