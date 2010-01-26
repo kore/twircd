@@ -372,7 +372,7 @@ class Server
         $this->sendServerMessage( $user, "002 {$user->nick} :Your host is twircd, running version " . \TwIRCd\VERSION );
         $this->sendServerMessage( $user, "003 {$user->nick} :This server was created " . date( 'r' ) );
         $this->sendServerMessage( $user, "004 {$user->nick} :twircd " . \TwIRCd\VERSION . " o t" );
-        $this->sendServerMessage( $user, "005 {$user->nick} PREFIX=(ov)@+ CHANTYPES=&# CHANMODES=,,,nt NICKLEN=23 NETWORK=BitlBee CASEMAPPING=rfc1459 MAXTARGETS=1 WATCH=128 :are supported by this server" );
+        $this->sendServerMessage( $user, "005 {$user->nick} PREFIX=(ov)@+ CHANTYPES=&# CHANMODES=,,,nt NICKLEN=15 NETWORK=TwIRCd CASEMAPPING=rfc1459 MAXTARGETS=1 WATCH=128 :are supported by this server" );
 
         // @todo: Send proper MOTD
         $this->sendServerMessage( $user, "375 {$user->nick} :twircd Message Of The Day" );
