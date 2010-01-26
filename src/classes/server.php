@@ -190,6 +190,13 @@ class Server
 
         $this->logger->log( E_NOTICE, 'Check for friend list updates.' );
         $friends      = $user->client->getFriends();
+        if ( !count( $friends ) )
+        {
+            // This is likely a service failure, jsut just abort.
+            return;
+        }
+
+        // Set operations of old and new friends lists
         $intersection = array_intersect( array_keys( $friends ), array_keys( $user->friends ) );
                
         $followed     = array_diff( array_keys( $friends ), $intersection );
