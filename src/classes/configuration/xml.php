@@ -247,7 +247,7 @@ class Xml extends \TwIRCd\Configuration
             }
 
             $container->appendChild(
-                $node = $this->document->createElement( 'group', htmlspecialchars( implode( ',', $users ) ) )
+                $node = $this->document->createElement( 'group', htmlspecialchars( implode( ',', array_filter( $users, function( $user ) { return !empty( $user ); } ) ) ) )
             );
             $node->setAttribute( 'name', $group );
             return $this->store();
