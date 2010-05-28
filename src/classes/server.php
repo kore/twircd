@@ -192,7 +192,7 @@ class Server
         $friends      = $user->client->getFriends();
         if ( !count( $friends ) )
         {
-            // This is likely a service failure, jsut just abort.
+            // This is likely a service failure, just abort.
             return;
         }
 
