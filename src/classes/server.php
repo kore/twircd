@@ -70,6 +70,12 @@ class Server
     protected $lastFriendListUpdate;
 
     /**
+     * Required prefix for messages to be published on twitter, serves
+     * as a precaution.
+     */
+    protected $prefix;
+
+    /**
      * Construct Twitter IRC server
      *
      * Provide a logger and an IRC server implementation.
@@ -78,12 +84,13 @@ class Server
      * @param \TwIRCd\Irc\Server $ircServer 
      * @return void
      */
-    public function __construct( \TwIRCd\Logger $logger, \TwIRCd\Irc\Server $ircServer, \TwIRCd\Mapper $mapper )
+    public function __construct( \TwIRCd\Logger $logger, \TwIRCd\Irc\Server $ircServer, \TwIRCd\Mapper $mapper, $prefix = '' )
     {
         $this->logger    = $logger;
         $this->ircServer = $ircServer;
         $this->mapper    = $mapper;
         $this->users     = array();
+        $this->prefix    = $prefix;
 
         $this->registerCallbacks();
     }
@@ -288,8 +295,17 @@ class Server
 
         try
         {
-            $this->logger->log( E_NOTICE, "Twitter: " . $message->params[1] );
-            $user->client->updateStatus( $message->params[1] );
+            $text = $message->params[1];
+            if ( substr( $text, 0, strlen( $this->prefix ) ) != $this->prefix )
+            {
+                $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Ignored message (prefix "' . $this->prefix . '" missing): ' . $text );
+                return;
+            }
+
+            $text = substr( $text, strlen( $this->prefix ) );
+
+            $this->logger->log( E_NOTICE, "Twitter: " . $text );
+            $user->client->updateStatus( $text );
         }
         catch ( ConnectionException $e )
         {
@@ -321,8 +337,17 @@ class Server
 
         try
         {
-            $this->logger->log( E_NOTICE, "Direct message to $target: " . $message->params[1] );
-            $user->client->sendDirectMessage( $target, $message->params[1] );
+            $text = $message->params[1];
+            if ( substr( $text, 0, strlen( $this->prefix ) ) != $this->prefix )
+            {
+                $this->ircServer->sendMessage( $user, 'twircd', '&twitter', 'Ignored message (prefix "' . $this->prefix . '" missing): ' . $text );
+                return;
+            }
+
+            $text = substr( $text, strlen( $this->prefix ) );
+
+            $this->logger->log( E_NOTICE, "Direct message to $target: " . $text );
+            $user->client->sendDirectMessage( $target, $text );
         }
         catch ( ConnectionException $e )
         {
