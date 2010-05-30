@@ -48,6 +48,19 @@ class Twitter extends \TwIRCd\Client
     protected $searchBaseUrl = 'search.twitter.com';
 
     /**
+     * Cache dir for twitter avatars.
+     * 
+     * @var string
+     */
+    protected $cacheDir;
+
+    public function __construct( \TwIRCd\Logger $logger, \TwIRCd\Configuration $config )
+    {
+        parent::__construct( $logger, $config );
+        $this->cacheDir = __DIR__ . '/../../../var/cache';
+    }
+
+    /**
      * Receive new messages
      *
      * Receive new messages from the timeline microblogging service.
@@ -271,6 +284,11 @@ class Twitter extends \TwIRCd\Client
                 {
                     $friend->realName = $entry['name'];
                 }
+
+                if ( isset( $entry['profile_image_url'] ) )
+                {
+                    $friend->imgUrl = $entry['profile_image_url'];
+                }
             }
 
             $cursor = isset( $json['next_cursor'] ) ? $json['next_cursor'] : false;
@@ -362,12 +380,59 @@ class Twitter extends \TwIRCd\Client
                 $lastId = (string) $message['id'],
                 $message[$user]['screen_name'] . '!' . $message[$user]['screen_name'] . '@twitter.com',
                 '&twitter',
-                $this->unfoldUrls( html_entity_decode( $message['text'] ) )
+                $this->generateAvatar( $message[$user]['screen_name'] ) . $this->unfoldUrls( html_entity_decode( $message['text'] ) )
             );
         }
 
         $this->configuration->setLastUpdate( $type, $lastId );
         return $messages;
+    }
+
+    /**
+     * Returns an IRC avatar for the given $user.
+     *
+     * @TODO Make clean!!!
+     */
+    protected function generateAvatar( $user )
+    {
+        if ( $this->configuration->getValue( 'avatar', 'false' ) !== 'true' )
+        {
+            return '';
+        }
+
+        $this->logger->log( E_NOTICE, "Trying to generate avatar for user $user" );
+
+        $data = $this->httpRequest( 'GET', '/users/show.json', array( 'screen_name' => $user ) );
+
+        $url = $data['profile_image_url'];
+        $file = $this->cacheDir . '/' . str_replace( '/', '_', parse_url( $url, PHP_URL_PATH ) );
+
+        if ( !file_exists( $file ) )
+        {
+            file_put_contents( $file, file_get_contents( $url ) );
+            $this->logger->log( E_NOTICE, "Fetched avatar to $file." );
+        }
+
+        $this->logger->log( E_NOTICE, "Generating IRC avatar for $user." );
+
+        $ircImg = shell_exec(
+            sprintf(
+                'img2txt -f irc --height %s %s',
+                escapeshellarg( $this->configuration->getValue( 'avatarHeight', '7' ) ),
+                escapeshellarg( $file )
+            )
+        );
+
+        if ( $ircImg === null )
+        {
+            $this->logger->log( E_WARNING, "Execution of img2txt returned null. Maybe caca-utils is not installed?" );
+        }
+        else
+        {
+            $this->logger->log( E_NOTICE, "Generated IRC avatar successfully." );
+        }
+
+        return $ircImg;
     }
 
     /**

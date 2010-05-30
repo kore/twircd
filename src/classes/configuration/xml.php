@@ -297,5 +297,62 @@ class Xml extends \TwIRCd\Configuration
 
         return $groups;
     }
+
+    /**
+     * Retrieves a value from the simple key-value store.
+     * 
+     * Returns $default, if the desired value is not set.
+     *
+     * @param string $key
+     * @param string $default
+     */ 
+    public function getValue( $key, $default = null )
+    {
+        $xpath = new \DOMXPath( $this->document );
+        $nodes = $xpath->query( '/config/values/value[@key = "' . $key . '"]' );
+        if ( $nodes->length != 0 )
+        {
+            return $nodes->item( 0 )->nodeValue;
+        }
+        return $default;
+    }
+
+    /**
+     * Sets a value in the simple key-value store.
+     *
+     * @param string $key
+     * @param string $value
+     */
+    public function setValue( $key, $value )
+    {
+        $xpath = new \DOMXPath( $this->document );
+        $nodes = $xpath->query( '/config/values/value[@key = "' . $key . '"]' );
+
+        $node = null;
+        if ( $nodes->length == 0 )
+        {
+            $node = $this->document->createElement( 'value' );
+            $node->setAttribute( 'key', $key );
+
+            $parents = $xpath->query( '/config/values' );
+            $parent = null;
+            if ( $parents->length == 0 )
+            {
+                $parent = $this->document->createElement( 'values' );
+                $this->document->documentElement->appendChild( $parent );
+            }
+            else
+            {
+                $parent = $parents->item( 0 );
+            }
+
+            $parent->appendChild( $node );
+        }
+        else
+        {
+            $node = $nodes->item( 0 );
+        }
+        $node->nodeValue = $value;
+    }
 }
 

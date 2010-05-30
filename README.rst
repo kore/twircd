@@ -81,6 +81,25 @@ the time between fetching new massages might vary slightly.
 
 __ http://bip.t1r.net/
 
+Settings
+--------
+
+To change a settings value, query the "twircd" user. In the query the commands
+
+::
+
+    $ set <key> <value>
+    $ get <key>
+
+Are available. Settings keys may not contain white spaces.
+
+Currently supported settings are:
+
+avatar (true/false)
+  Switch on/off avatars for tweets. Default is false.
+avatarHeight (int)
+  Set height (in lines) of twitter avatars. Default is 7.
+
 
 ..
    Local Variables:
