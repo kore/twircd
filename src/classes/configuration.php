@@ -117,5 +117,23 @@ abstract class Configuration
      * @return array
      */
     abstract public function getGroups();
+
+    /**
+     * Sets a value in the simple key-value store.
+     *
+     * @param string $key
+     * @param string $value
+     */
+    abstract public function setValue( $key, $value );
+
+    /**
+     * Retrieves a value from the simple key-value store.
+     * 
+     * Returns $default, if the desired value is not set.
+     *
+     * @param string $key
+     * @param string $default
+     */ 
+    abstract public function getValue( $key, $default = null );
 }
 

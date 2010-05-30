@@ -273,4 +273,69 @@ class XmlTests extends \PHPUnit_Framework_TestCase
             $conf->getGroups()
         );
     }
+
+    public function testGetNonExsistentValueNoCustomDefault()
+    {
+        $conf = new \TwIRCd\Configuration\Xml( $this->tmpFile );
+
+        $this->assertEquals(
+            '',
+            $conf->getValue( 'foo' )
+        );
+    }
+
+    public function testGetNonExsistentValueCustomDefault()
+    {
+        $conf = new \TwIRCd\Configuration\Xml( $this->tmpFile );
+
+        $this->assertEquals(
+            23,
+            $conf->getValue( 'foo', 23 )
+        );
+    }
+
+    public function testSetNewValue()
+    {
+        $conf = new \TwIRCd\Configuration\Xml( $this->tmpFile );
+        $conf->setValue( 'foo', 'bar' );
+
+        $this->assertEquals(
+            'bar',
+            $conf->getValue( 'foo' )
+        );
+    }
+
+    public function testSetExistingValue()
+    {
+        $conf = new \TwIRCd\Configuration\Xml( $this->tmpFile );
+        $conf->setValue( 'foo', 'bar' );
+        $conf->setValue( 'foo', 'baz' );
+
+        $this->assertEquals(
+            'baz',
+            $conf->getValue( 'foo' )
+        );
+    }
+
+    public function testGetExsistentValueNoCustomDefault()
+    {
+        $conf = new \TwIRCd\Configuration\Xml( $this->tmpFile );
+        $conf->setValue( 'foo', 'bar' );
+
+        $this->assertEquals(
+            'bar',
+            $conf->getValue( 'foo' )
+        );
+    }
+
+    public function testGetExsistentValueCustomDefault()
+    {
+        $conf = new \TwIRCd\Configuration\Xml( $this->tmpFile );
+        $conf->setValue( 'foo', 'bar' );
+
+        $this->assertEquals(
+            'bar',
+            $conf->getValue( 'foo', 23 )
+        );
+    }
 }
