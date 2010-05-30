@@ -98,6 +98,7 @@ class Server
         $this->ircServer->registerCallback( 'USER',     array( $this, 'startup' ) );
         $this->ircServer->registerCallback( 'PRIVMSG',  array( $this, 'twitter' ) );
         $this->ircServer->registerCallback( 'PRIVMSG',  array( $this, 'directMessage' ) );
+        $this->ircServer->registerCallback( 'PRIVMSG',  array( $this, 'command' ) );
         $this->ircServer->registerCallback( 'JOIN',     array( $this, 'addSearch' ) );
         $this->ircServer->registerCallback( 'JOIN',     array( $this, 'addGroup' ) );
         $this->ircServer->registerCallback( 'PART',     array( $this, 'removeSearch' ) );
@@ -298,6 +299,58 @@ class Server
         catch ( LengthException $e )
         {
             $this->ircServer->sendMessage( $user, 'twircd', '&twitter', $e->getMessage() );
+        }
+    }
+
+    /**
+     * Receive a command message.
+     *
+     * Command messages are send to the "twircd" user via query.
+     * 
+     * @TODO Refactor to have a real command structure. Should be client 
+     *       specific, except for a few global commands, like the currently
+     *       implemented set/get.
+     * @param Irc\User $user 
+     * @param Irc\Message $message 
+     * @return void
+     */
+    public function command( Irc\User $user, Irc\Message $message )
+    {
+        if ( $message->params[0] !== 'twircd' )
+        {
+            return;
+        }
+
+        $this->logger->log( E_NOTICE, "Command: " . $message->params[1] );
+
+        if ( preg_match( '((set|get)\s*([^\s]+)\s*(.*)$)i', $message->params[1], $matches ) == 0 )
+        {
+            $this->logger->log( E_WARNING, "Unkown command: " . $message->params[1] );
+        }
+        
+        switch( strtolower( $matches[1] ) )
+        {
+            case 'set':
+                $user->configuration->setValue( $matches[2], $matches[3] );
+                $this->ircServer->sendMessage(
+                    $user,
+                    'twircd',
+                    $user->nick,
+                    "Successfully set '{$matches[2]}' to '{$matches[3]}'."
+                );
+                $this->logger->log( E_NOTICE, "Set '{$matches[2]}' to '{$matches[3]}'." );
+                break;
+            case 'get':
+                $this->ircServer->sendMessage(
+                    $user,
+                    'twircd',
+                    $user->nick,
+                    "Value for key '{$matches[2]}' is '"
+                        . ( $val = $user->configuration->getValue( $matches[2], '' ) )
+                        . "'."
+                );
+                $this->logger->log( E_NOTICE, "Returned '{$matches[2]}' is '$val'." );
+                break;
         }
     }
 
