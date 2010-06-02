@@ -48,6 +48,31 @@ class Twitter extends \TwIRCd\Client
     protected $searchBaseUrl = 'search.twitter.com';
 
     /**
+     * pecl/oauth object to communicate with twitter
+     * 
+     * @var \OAuth
+     */
+    protected $oauth;
+
+    /**
+     * Authentification state and data for twitter oAuth authentification.
+     * 
+     * @var array
+     */
+    protected $authState = array(
+        'consumerKey'       => 'VRGlWMjwgcdsAypjp6Xw',
+        'consumerSecret'    => 'oPWJhXcZRo9YxShkYT8VOCPSwlHjItK2O1aIOR2M',
+        'requestTokenUrl'   => 'https://api.twitter.com/oauth/request_token',
+        'requestToken'      => null,
+        'accessTokenUrl'    => 'https://api.twitter.com/oauth/access_token',
+        'accessToken'       => null,
+        'accessTokenSecret' => null,
+        'authorizeUrl'      => 'https://api.twitter.com/oauth/authorize',
+        'pin'               => null,
+        'loggedIn'          => false,
+    );
+
+    /**
      * Cache dir for twitter avatars.
      * 
      * @var string
@@ -436,6 +461,127 @@ class Twitter extends \TwIRCd\Client
     }
 
     /**
+     * Authorize an authorized client
+     *
+     * If a client is yet unauthorized, the client sould authorize with the 
+     * service it implements. Should exit immediately if the client already is 
+     * authorized.
+     *
+     * @param \TwIRCd\Irc\Server $server 
+     * @param \TwIRCd\Irc\User $user 
+     * @return void
+     */
+    public function authorize( \TwIRCd\Irc\Server $server, \TwIRCd\Irc\User $user )
+    {
+        if ( $this->authState['loggedIn'] )
+        {
+            return false;
+        }
+
+        // We need to get a request token first
+        if ( $this->authState['requestToken'] === null )
+        {
+            try
+            {
+                $this->logger->log( E_NOTICE, 'Trying to fetch request token from twitter.' );
+                $this->oauth = new \OAuth( $this->authState['consumerKey'], $this->authState['consumerSecret'], OAUTH_SIG_METHOD_HMACSHA1, OAUTH_AUTH_TYPE_URI );
+                $data  = $this->oauth->getRequestToken( $this->authState['requestTokenUrl'] );
+                $this->authState['requestToken']       = $data['oauth_token'];
+                $this->authState['requestTokenSecret'] = $data['oauth_token_secret'];
+                $this->logger->log( E_NOTICE, 'Got request token: ' . $this->authState['requestToken'] );
+
+                // The user must access the given URL to give twircd access to 
+                // twitter
+                $server->sendMessage(
+                    $user,
+                    'twircd',
+                    $user->nick, 
+                    sprintf( "Please allow twircd access to your twitter account: %s?oauth_token=%s\nWrite \"OK\" in here, once you authorized.", $this->authState['authorizeUrl'], $this->authState['requestToken'] )
+                );
+
+                // Register callback to retrieve the entered PIN
+                $server->registerCallback( 'PRIVMSG', array( $this, 'enteredPin' ) );
+            }
+            catch ( \OAuthException $e )
+            {
+                $this->logger->log( E_ERROR, $e->getMessage() );
+            }
+            return false;
+        }
+        
+        if ( $this->authState['pin'] === null )
+        {
+            return false;
+        }
+
+        // Finally request access token and consider user logged in
+        try
+        {
+            $this->logger->log( E_NOTICE, 'Trying to fetch access token from twitter.' );
+            $this->oauth->setToken( $this->authState['requestToken'], $this->authState['requestTokenSecret'] );
+            $data  = $this->oauth->getAccessToken( $this->authState['accessTokenUrl'] );
+
+            $this->authState['accessToken']       = $data['oauth_token'];
+            $this->authState['accessTokenSecret'] = $data['oauth_token_secret'];
+            $this->authState['loggedIn']          = true;
+            $this->logger->log( E_NOTICE, 'Got access token: ' . $this->authState['accessToken'] . ' - user is now "logged in".' );
+            $server->sendMessage(
+                $user,
+                'twircd',
+                $user->nick, 
+                'Authorization complete. Recieved access token for twitter.'
+            );
+            return true;
+        }
+        catch ( \OAuthException $e )
+        {
+            $this->authState['requestToken'] = null;
+            $this->authState['pin']          = null;
+
+            $this->logger->log( E_ERROR, $e->getMessage() );
+            $server->sendMessage(
+                $user,
+                'twircd',
+                $user->nick, 
+                'Authorization failed: ' . $e->getMessage()
+            );
+        }
+
+        return false;
+    }
+
+    /**
+     * Callback for entered PIN
+     * 
+     * @param \TwIRCd\Irc\User $user 
+     * @param \TwIRCd\Irc\Message $message 
+     * @return void
+     */
+    public function enteredPin( \TwIRCd\Irc\User $user, \TwIRCd\Irc\Message $message )
+    {
+        if ( ( $message->params[0] !== 'twircd' ) ||
+             ( !preg_match( '(^OK$)i', $message->params[1] ) ) )
+        {
+            return;
+        }
+
+        $this->authState['pin'] = trim( $message->params[1] );
+    }
+
+    /**
+     * Return if the client is authorized
+     *
+     * Returns true if the client is already authorized with the service, and 
+     * false otherwise.
+     * 
+     * @return bool
+     */
+    public function isAuthorized()
+    {
+        return $this->authState['loggedIn'];
+    }
+
+    /**
      * Perform a HTTP request
      *
      * Performs a HTTP request, using the client environment, like the base 
@@ -454,46 +600,26 @@ class Twitter extends \TwIRCd\Client
      */
     protected function httpRequest( $method, $path, array $data = array(), $baseUrl = null )
     {
-        $password = '';
-        $url      = ( ( $baseUrl === null ) ? 'http://' . urlencode( $this->user ) . ':' . ( $password = urlencode( $this->password ) ) . '@' . $this->baseUrl : $baseUrl ) . $path;
-
-        // Append data to URL for GET requests
-        if ( ( $method === 'GET' ) && count( $data ) )
+        if ( !$this->isAuthorized() )
         {
-            $url .= '?' . http_build_query( $data );
-        }
-    
-        // Configure request options
-        $options = array(
-            'http' => array(
-                'method'        => $method,
-                'ignore_errors' => true,
-            ),
-        );
-
-        // Append data to body for non-GET requests
-        if ( ( $method !== 'GET' ) && count( $data ) )
-        {
-            $options['http']['content'] = http_build_query( $data );
+            throw new \TwIRCd\ConnectionException( 'Not yet authorized.' );
         }
 
-        // Receive all new messages
-        //
-        // Silence error messages about connection failure or similar, those are
-        // somehow expected with twitter.
-        $this->logger->log( E_NOTICE, 'Request URL: ' . str_replace( $password, '***', $url ) );
-        $fp = @fopen( $url, 'r', false, stream_context_create( $options ) );
-
-        if ( $fp === false )
+        try
         {
-            throw new \TwIRCd\ConnectionException( 'Could not connect to service.' );
+            $url = ( ( $baseUrl === null ) ? 'http://' . $this->baseUrl : $baseUrl ) . $path;
+            $this->logger->log( E_NOTICE, 'Request URL: ' . $url );
+            $this->oauth->fetch( $url, $data, $method );
+        }
+        catch ( \OAuthException $e )
+        {
+            throw new \TwIRCd\ConnectionException( $e->getMessage() );
         }
 
         // We need to fetch the body first, otherwise the headers are not 
         // available, when using --with-curl-wrappers
-        $body    = $this->getResponseBody( $fp );
-        $headers = $this->getHttpHeaders( $fp );
-        fclose( $fp );
+        $body    = $this->oauth->getLastResponse();
+        $headers = $this->getHttpHeaders( $this->oauth );
 
         // This check is not correct in terms of general HTTP handling, but 
         // should sufficient for twitter.
@@ -514,60 +640,19 @@ class Twitter extends \TwIRCd\Client
     }
 
     /**
-     * Get HTTP headers from resource
+     * Get HTTP headers from request
      *
-     * Return an array with the HTTP headers from the given resource. The 
-     * resource should be a fopen()'ed HTTP stream wrapper.
+     * Return an array with the HTTP headers from the given OAuth request.
      * 
-     * @param resource $fp 
+     * @param \OAuth
      * @return array
      */
-    protected function getHttpHeaders( $fp )
+    protected function getHttpHeaders( \OAuth $oauth )
     {
-        // Extract response headers
-        $metaData   = stream_get_meta_data( $fp );
-        // The array content depends on whether PHP is compiled with 
-        // --with-curl-wrappers or not. To handle both variants, this check is 
-        // required.
-        $rawHeaders = isset( $metaData['wrapper_data']['headers'] ) ? $metaData['wrapper_data']['headers'] : $metaData['wrapper_data'];
         $headers    = array();
-        foreach ( $rawHeaders as $lineContent )
-        {
-            // Extract header values
-            if ( preg_match( '(^HTTP/(?P<version>\d+\.\d+)\s+(?P<status>\d+))S', $lineContent, $match ) )
-            {
-                $headers['version'] = $match['version'];
-                $headers['status']  = (int) $match['status'];
-            }
-            else
-            {
-                list( $key, $value ) = explode( ':', $lineContent, 2 );
-                $headers[strtolower( $key )] = ltrim( $value );
-            }
-        }
+        var_dump( $oauth->getLastResponseInfo() );
 
         return $headers;
-    }
-
-    /**
-     * Get HTTP response body from resource
-     *
-     * Return an array with the HTTP response body from the given resource. The 
-     * resource should be a fopen()'ed HTTP stream wrapper.
-     * 
-     * @param resource $fp 
-     * @return string
-     */
-    protected function getResponseBody( $fp )
-    {
-        // Read all the returned stuff
-        $data = '';
-        while ( !feof( $fp ) )
-        {
-            $data .= fread( $fp, 1024 );
-        }
-
-        return $data;
     }
 
     /**
