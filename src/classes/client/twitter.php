@@ -496,7 +496,7 @@ class Twitter extends \TwIRCd\Client
                     $user,
                     'twircd',
                     $user->nick, 
-                    sprintf( "Please allow twircd access to your twitter account: %s?oauth_token=%s\nWrite \"OK\" in here, once you authorized.", $this->authState['authorizeUrl'], $this->authState['requestToken'] )
+                    sprintf( "Please allow twircd access to your twitter account: %s?oauth_token=%s\nWrite \"OK\" in here, once you authorized TwIRCd.", $this->authState['authorizeUrl'], $this->authState['requestToken'] )
                 );
 
                 // Register callback to retrieve the entered PIN
@@ -609,6 +609,7 @@ class Twitter extends \TwIRCd\Client
         {
             $url = ( ( $baseUrl === null ) ? 'http://' . $this->baseUrl : $baseUrl ) . $path;
             $this->logger->log( E_NOTICE, 'Request URL: ' . $url );
+            $this->oauth->setToken( $this->authState['accessToken'], $this->authState['accessTokenSecret'] );
             $this->oauth->fetch( $url, $data, $method );
         }
         catch ( \OAuthException $e )
@@ -649,8 +650,10 @@ class Twitter extends \TwIRCd\Client
      */
     protected function getHttpHeaders( \OAuth $oauth )
     {
-        $headers    = array();
-        var_dump( $oauth->getLastResponseInfo() );
+        $info = $oauth->getLastResponseInfo();
+        $headers    = array(
+            'status' => $info['http_code'],
+        );
 
         return $headers;
     }
@@ -671,15 +674,45 @@ class Twitter extends \TwIRCd\Client
      */
     protected function updateRateLimit( array $httpHeaders )
     {
-        if ( !isset( $httpHeaders['x-ratelimit-remaining'] ) )
+        // Reenable this check, once pecl/oauth is fixed.
+        if ( false && !isset( $httpHeaders['x-ratelimit-remaining'] ) )
         {
-            // Not all responses must contain rate limit information.
+            // Not all responses contain rate limit information.
             return;
         }
 
-        $remainingTime     = $httpHeaders['x-ratelimit-reset'] - time();
-        $remainingRequests = $httpHeaders['x-ratelimit-remaining'];
-        $requestsPerHour   = $httpHeaders['x-ratelimit-limit'];
+        if ( isset( $httpHeaders['x-ratelimit-reset'] ) )
+        {
+            $remainingTime     = $httpHeaders['x-ratelimit-reset'] - time();
+            $remainingRequests = $httpHeaders['x-ratelimit-remaining'];
+            $requestsPerHour   = $httpHeaders['x-ratelimit-limit'];
+        }
+        else
+        {
+            // If rate limit information is not available from the HTTP 
+            // headers, we need to request them explicitely.
+            //
+            // @HACK: This is a hack required until pecl/oauth exposes the HTTP 
+            // response headers.
+            try
+            {
+                $this->oauth->setToken( $this->authState['accessToken'], $this->authState['accessTokenSecret'] );
+                $this->oauth->fetch( 'http://' . $this->baseUrl . '/account/rate_limit_status.json' );
+                $status = json_decode( $this->oauth->getLastResponse(), true );
+
+                $remainingTime     = $status['reset_time_in_seconds'] - time();
+                $remainingRequests = $status['remaining_hits'];
+                $requestsPerHour   = $status['hourly_limit'];
+            }
+            catch ( \OAuthException $e )
+            {
+                // Something failed, we don't really care since this is a hack 
+                // anyways.
+                $this->logger->log( E_WARNING, "Error updating rate limit: " . $e->getMessage() );
+                return;
+            }
+        }
+
         $percentTime       = $remainingTime / 3600;
         $percentRequests   = $remainingRequests / $requestsPerHour;
 
