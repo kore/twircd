@@ -143,16 +143,6 @@ class Server
     {
         foreach ( $this->users as $user )
         {
-            if ( $user->client->authorize( $this->ircServer, $user ) )
-            {
-                $this->initialize( $user );
-            }
-
-            if ( !$user->client->isAuthorized() )
-            {
-                continue;
-            }
-
             $messages = $user->client->getUpdates();
 
             foreach ( $messages as $message )
@@ -256,19 +246,7 @@ class Server
 
         $this->mapper->initializeUserAccount( $user );
         $this->users[$user->nick] = $user;
-    }
 
-    /**
-     * Initialize user
-     *
-     * Initialize user and join all channels, which exist for the specified 
-     * user.
-     * 
-     * @param Irc\User $user 
-     * @return void
-     */
-    protected function initialize( Irc\User $user )
-    {
         // Join default &twitter channel, with all friends listed as users
         $friendList = "@twircd " . implode( ' ', array_map(
             function ( $friend )

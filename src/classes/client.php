@@ -401,28 +401,5 @@ abstract class Client
      * @return array
      */
     abstract public function unfollowUser( $user );
-
-    /**
-     * Authorize an authorized client
-     *
-     * If a client is yet unauthorized, the client sould authorize with the 
-     * service it implements. Should exit immediately if the client already is 
-     * authorized.
-     *
-     * @param \TwIRCd\Irc\Server $server 
-     * @param \TwIRCd\Irc\User $user 
-     * @return void
-     */
-    abstract public function authorize( \TwIRCd\Irc\Server $server, \TwIRCd\Irc\User $user );
-
-    /**
-     * Return if the client is authorized
-     *
-     * Returns true if the client is already authorized with the service, and 
-     * false otherwise.
-     * 
-     * @return bool
-     */
-    abstract public function isAuthorized();
 }
 
