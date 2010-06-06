@@ -342,6 +342,7 @@ class Server
         if ( preg_match( '((set|get)\s*([^\s]+)\s*(.*)$)i', $message->params[1], $matches ) == 0 )
         {
             $this->logger->log( E_WARNING, "Unkown command: " . $message->params[1] );
+            return;
         }
         
         switch( strtolower( $matches[1] ) )
